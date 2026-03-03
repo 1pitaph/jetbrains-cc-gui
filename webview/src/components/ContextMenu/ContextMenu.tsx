@@ -61,17 +61,28 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     <div
       ref={menuRef}
       className="context-menu"
+      role="menu"
+      aria-label="Context menu"
       style={{ left: pos.left, top: pos.top }}
     >
       {items.map((item, i) =>
         item.separator ? (
-          <div key={`sep-${i}`} className="context-menu-separator" />
+          <div key={`sep-${i}`} className="context-menu-separator" role="separator" />
         ) : (
           <div
             key={`item-${i}`}
             className={`context-menu-item${item.disabled ? ' disabled' : ''}`}
+            role="menuitem"
+            aria-disabled={item.disabled || false}
+            tabIndex={item.disabled ? -1 : 0}
             onClick={() => {
               if (!item.disabled) {
+                item.action();
+                onCloseRef.current();
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !item.disabled) {
                 item.action();
                 onCloseRef.current();
               }

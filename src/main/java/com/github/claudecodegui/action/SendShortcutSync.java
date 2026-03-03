@@ -43,8 +43,17 @@ public final class SendShortcutSync {
      *
      * @param mode "cmdEnter" → Ctrl+Enter sends, "enter" → Ctrl+Enter inserts newline
      */
+    private static final String MODE_ENTER = "enter";
+    private static final String MODE_CMD_ENTER = "cmdEnter";
+
     public static void sync(String mode) {
         try {
+            // Validate mode input
+            if (mode == null || (!MODE_ENTER.equals(mode) && !MODE_CMD_ENTER.equals(mode))) {
+                LOG.warn("Invalid sendShortcut mode: " + mode + ", defaulting to '" + MODE_ENTER + "'");
+                mode = MODE_ENTER;
+            }
+
             KeymapManager manager = KeymapManager.getInstance();
             if (manager == null) {
                 LOG.warn("KeymapManager not available");
@@ -62,7 +71,7 @@ public final class SendShortcutSync {
                 : KeyStroke.getKeyStroke("ctrl ENTER");
             KeyboardShortcut shortcut = new KeyboardShortcut(ctrlEnter, null);
 
-            if ("cmdEnter".equals(mode)) {
+            if (MODE_CMD_ENTER.equals(mode)) {
                 keymap.addShortcut(ChatSendAction.ACTION_ID, shortcut);
                 LOG.info("Synced shortcuts: Ctrl+Enter → Send");
             } else {

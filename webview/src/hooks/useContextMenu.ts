@@ -83,11 +83,11 @@ export function pasteAtCursor(savedRange: Range | null, el: HTMLElement, onCompl
   sendToJava('read_clipboard', '');
 }
 
-/** Insert a newline at saved range in a contenteditable element */
-export function insertNewline(savedRange: Range | null, el: HTMLElement): void {
-  el.focus();
-  restoreRange(savedRange);
-  // Use insertLineBreak or fall back to manual br insertion
+/**
+ * Insert a newline at the current cursor position using insertLineBreak
+ * with a manual <br> fallback. Works without requiring a saved range.
+ */
+export function insertNewlineAtCursor(): void {
   if (!document.execCommand('insertLineBreak')) {
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
@@ -101,4 +101,11 @@ export function insertNewline(savedRange: Range | null, el: HTMLElement): void {
       sel.addRange(range);
     }
   }
+}
+
+/** Insert a newline at saved range in a contenteditable element */
+export function insertNewline(savedRange: Range | null, el: HTMLElement): void {
+  el.focus();
+  restoreRange(savedRange);
+  insertNewlineAtCursor();
 }

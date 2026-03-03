@@ -225,9 +225,18 @@ public class ClaudeChatWindow {
 
     // ==================== JavaScript Bridge ====================
 
+    private static final java.util.regex.Pattern SAFE_JS_FUNCTION_NAME =
+        java.util.regex.Pattern.compile("^[a-zA-Z_$][a-zA-Z0-9_$.]*$");
+
     void callJavaScript(String functionName, String... args) {
         if (disposed || browser == null) {
             LOG.warn("Cannot call JS function " + functionName + ": disposed=" + disposed + ", browser=" + (browser == null ? "null" : "exists"));
+            return;
+        }
+
+        // Validate function name to prevent JS injection
+        if (functionName == null || !SAFE_JS_FUNCTION_NAME.matcher(functionName).matches()) {
+            LOG.error("Invalid JavaScript function name rejected: " + functionName);
             return;
         }
 
@@ -237,7 +246,7 @@ public class ClaudeChatWindow {
             }
             try {
                 String callee = functionName;
-                if (functionName != null && !functionName.isEmpty() && !functionName.contains(".")) {
+                if (!functionName.contains(".")) {
                     callee = "window." + functionName;
                 }
 

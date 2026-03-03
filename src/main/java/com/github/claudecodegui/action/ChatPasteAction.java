@@ -40,7 +40,9 @@ public class ChatPasteAction extends ChatToolWindowAction {
                 "  if(el&&el.getAttribute('contenteditable')==='true'){" +
                 "    document.execCommand('insertText',false,txt);" +
                 "  } else if(window.onClipboardRead){" +
-                "    window.onClipboardRead(txt);" +
+                "    var cb=window.onClipboardRead;" +
+                "    window.onClipboardRead=undefined;" +
+                "    cb(txt);" +
                 "  }" +
                 "})()"
             );

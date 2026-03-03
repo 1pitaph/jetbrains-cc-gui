@@ -10,6 +10,7 @@ import PlanApprovalDialog from './components/PlanApprovalDialog';
 import RewindDialog from './components/RewindDialog';
 import RewindSelectDialog, { type RewindableMessage } from './components/RewindSelectDialog';
 import { sendBridgeEvent } from './utils/bridge';
+import { insertNewlineAtCursor } from './hooks/useContextMenu.js';
 import { ChatInputBox } from './components/ChatInputBox';
 import {
   useScrollBehavior,
@@ -1523,23 +1524,9 @@ const App = () => {
           break;
         }
         case 'newline': {
-          // Insert newline at cursor in the active contenteditable element
           const activeEl = document.activeElement;
           if (activeEl && activeEl.getAttribute('contenteditable') === 'true') {
-            if (!document.execCommand('insertLineBreak')) {
-              // Fallback: manually insert <br> and reposition cursor
-              const sel = window.getSelection();
-              if (sel && sel.rangeCount > 0) {
-                const range = sel.getRangeAt(0);
-                range.deleteContents();
-                const br = document.createElement('br');
-                range.insertNode(br);
-                range.setStartAfter(br);
-                range.collapse(true);
-                sel.removeAllRanges();
-                sel.addRange(range);
-              }
-            }
+            insertNewlineAtCursor();
           }
           break;
         }
