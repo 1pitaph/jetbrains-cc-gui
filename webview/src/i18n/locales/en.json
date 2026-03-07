@@ -613,6 +613,17 @@
       "deleteConfirmTitle": "Confirm Delete",
       "deleteConfirmMessage": "Are you sure you want to delete prompt \"{{name}}\"? This action cannot be undone.",
       "description": "Create common prompt templates. Type ! in the chat input to quickly select and insert",
+      "global": "Global Prompts",
+      "project": "Project Prompts",
+      "projectScope": "Project Prompts - {{projectName}}",
+      "noProject": "No Active Project",
+      "copyToGlobal": "Copy to Global",
+      "scopeLabel": {
+        "global": "Global",
+        "project": "Project"
+      },
+      "copyToGlobalSuccess": "Copied to global prompts",
+      "projectPromptsUnavailable": "Project prompts unavailable in current project",
       "dialog": {
         "addTitle": "Create Prompt",
         "editTitle": "Edit Prompt",
