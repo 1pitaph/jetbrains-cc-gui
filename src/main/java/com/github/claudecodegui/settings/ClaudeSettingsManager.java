@@ -90,6 +90,28 @@ public class ClaudeSettingsManager {
     }
 
     /**
+     * Read managed settings from the platform-specific managed-settings.json.
+     * Returns null if the file does not exist or cannot be parsed.
+     */
+    public JsonObject readManagedSettings() {
+        try {
+            Path managedPath = pathManager.getManagedSettingsPath();
+            File managedFile = managedPath.toFile();
+
+            if (!managedFile.exists()) {
+                return null;
+            }
+
+            try (FileReader reader = new FileReader(managedFile)) {
+                return JsonParser.parseReader(reader).getAsJsonObject();
+            }
+        } catch (Exception e) {
+            LOG.debug("[ClaudeSettingsManager] Failed to read managed-settings.json: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Write Claude Settings.
      */
     public void writeClaudeSettings(JsonObject settings) throws IOException {
@@ -198,12 +220,34 @@ public class ClaudeSettingsManager {
 
             String baseUrl = env.has("ANTHROPIC_BASE_URL") ? env.get("ANTHROPIC_BASE_URL").getAsString() : "";
 
+            // If no API key found, check for apiKeyHelper in user settings or managed settings
+            if (apiKey.isEmpty() && "none".equals(authType)) {
+                if (claudeSettings.has("apiKeyHelper") && !claudeSettings.get("apiKeyHelper").isJsonNull()) {
+                    authType = "api_key_helper";
+                } else {
+                    JsonObject managedSettings = readManagedSettings();
+                    if (managedSettings != null && managedSettings.has("apiKeyHelper") && !managedSettings.get("apiKeyHelper").isJsonNull()) {
+                        authType = "api_key_helper";
+                    }
+                }
+            }
+
             result.addProperty("apiKey", apiKey);
             result.addProperty("authType", authType);  // Add auth type identifier
             result.addProperty("baseUrl", baseUrl);
         } else {
+            // No env object — still check for apiKeyHelper
+            String authType = "none";
+            if (claudeSettings.has("apiKeyHelper") && !claudeSettings.get("apiKeyHelper").isJsonNull()) {
+                authType = "api_key_helper";
+            } else {
+                JsonObject managedSettings = readManagedSettings();
+                if (managedSettings != null && managedSettings.has("apiKeyHelper") && !managedSettings.get("apiKeyHelper").isJsonNull()) {
+                    authType = "api_key_helper";
+                }
+            }
             result.addProperty("apiKey", "");
-            result.addProperty("authType", "none");
+            result.addProperty("authType", authType);
             result.addProperty("baseUrl", "");
         }
 
