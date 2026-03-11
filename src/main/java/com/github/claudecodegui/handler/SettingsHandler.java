@@ -363,7 +363,8 @@ public class SettingsHandler extends BaseMessageHandler {
             }
 
             if (context.getSession() != null) {
-                context.getSession().setModel(model);
+                context.getSession().setModel(finalModelName);
+                LOG.info("[SettingsHandler] Updated session model to: " + finalModelName);
             }
 
             // Update status bar with basic model name

@@ -269,7 +269,8 @@ function buildRuntimeSignature(options, systemPromptAppend, streamingEnabled, ru
     additionalDirectories: options.additionalDirectories || [],
     systemPromptAppend: systemPromptAppend || '',
     streamingEnabled: !!streamingEnabled,
-    runtimeSessionEpoch: runtimeSessionEpoch || ''
+    runtimeSessionEpoch: runtimeSessionEpoch || '',
+    model: options.model || ''  // Include model in signature to force runtime recreation on model change
   };
   return JSON.stringify(material);
 }

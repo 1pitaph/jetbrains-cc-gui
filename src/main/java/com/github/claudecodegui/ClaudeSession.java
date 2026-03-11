@@ -967,9 +967,11 @@ public class ClaudeSession {
         }
 
         final String runtimeSessionEpoch = state.getRuntimeSessionEpoch();
+        final String currentModel = state.getModel();
         LOG.info("[Lifecycle] sendToClaude sessionId=" + (state.getSessionId() != null ? state.getSessionId() : "(new)")
                 + ", epoch=" + runtimeSessionEpoch
-                + ", cwd=" + state.getCwd());
+                + ", cwd=" + state.getCwd()
+                + ", model=" + currentModel);
 
         return claudeSDKBridge.sendMessage(
                         channelId,
@@ -979,7 +981,7 @@ public class ClaudeSession {
                         state.getCwd(),
                         attachments,
                         effectivePermissionMode,
-                        state.getModel(),
+                        currentModel,
                         openedFilesJson,
                         agentPrompt,
                         streaming,
