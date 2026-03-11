@@ -5,6 +5,7 @@ import { ConfigSelect, ModelSelect, ModeSelect, ReasoningSelect } from './select
 import { CLAUDE_MODELS, CODEX_MODELS } from './types';
 import { STORAGE_KEYS, validateCodexCustomModels } from '../../types/provider';
 import type { CodexCustomModel } from '../../types/provider';
+import { readClaudeModelMapping } from '../../utils/claudeModelMapping';
 
 /**
  * Get custom Codex model list from localStorage
@@ -166,14 +167,8 @@ export const ButtonArea = ({
     // Apply model mapping to built-in models
     let builtInModels = CLAUDE_MODELS;
     try {
-      const stored = window.localStorage.getItem(STORAGE_KEYS.CLAUDE_MODEL_MAPPING);
-      if (stored) {
-        const mapping = JSON.parse(stored) as {
-          main?: string;
-          haiku?: string;
-          sonnet?: string;
-          opus?: string;
-        };
+      const mapping = readClaudeModelMapping();
+      if (Object.keys(mapping).length > 0) {
         builtInModels = CLAUDE_MODELS.map((m) => applyModelMapping(m, mapping));
       }
     } catch {

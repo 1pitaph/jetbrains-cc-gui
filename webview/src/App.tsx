@@ -52,6 +52,7 @@ import { usePluginModels } from './components/settings/hooks/usePluginModels';
 import { STORAGE_KEYS } from './types/provider';
 import { CHANGELOG_DATA } from './version/changelog';
 import { APP_VERSION } from './version/version';
+import { writeClaudeModelMapping } from './utils/claudeModelMapping';
 import type {
   ClaudeContentBlock,
   ClaudeMessage,
@@ -308,12 +309,8 @@ const App = () => {
   }, [sdkStatusLoaded, currentProvider, sdkStatus]);
 
   const syncActiveProviderModelMapping = useCallback((provider?: ProviderConfig | null) => {
-    if (typeof window === 'undefined' || !window.localStorage) return;
     if (!provider || !provider.settingsConfig || !provider.settingsConfig.env) {
-      try {
-        window.localStorage.removeItem('claude-model-mapping');
-      } catch {
-      }
+      writeClaudeModelMapping({});
       return;
     }
     const env = provider.settingsConfig.env as Record<string, any>;
@@ -323,15 +320,7 @@ const App = () => {
       sonnet: env.ANTHROPIC_DEFAULT_SONNET_MODEL ?? '',
       opus: env.ANTHROPIC_DEFAULT_OPUS_MODEL ?? '',
     };
-    const hasValue = Object.values(mapping).some(v => v && String(v).trim().length > 0);
-    try {
-      if (hasValue) {
-        window.localStorage.setItem('claude-model-mapping', JSON.stringify(mapping));
-      } else {
-        window.localStorage.removeItem('claude-model-mapping');
-      }
-    } catch {
-    }
+    writeClaudeModelMapping(mapping);
   }, []);
 
   // Global drag event interception - prevent browser default file-open behavior

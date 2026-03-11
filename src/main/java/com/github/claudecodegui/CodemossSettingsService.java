@@ -59,20 +59,20 @@ public class CodemossSettingsService {
 
         // Initialize WorkingDirectoryManager
         this.workingDirectoryManager = new WorkingDirectoryManager(
-            (ignored) -> {
-                try {
-                    return readConfig();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+                (ignored) -> {
+                    try {
+                        return readConfig();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                (config) -> {
+                    try {
+                        writeConfig(config);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
-            },
-            (config) -> {
-                try {
-                    writeConfig(config);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
         );
 
         // Initialize AgentManager
@@ -80,62 +80,62 @@ public class CodemossSettingsService {
 
         // Initialize SkillManager
         this.skillManager = new SkillManager(
-            (ignored) -> {
-                try {
-                    return readConfig();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            },
-            (config) -> {
-                try {
-                    writeConfig(config);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            },
-            claudeSettingsManager
+                (ignored) -> {
+                    try {
+                        return readConfig();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                (config) -> {
+                    try {
+                        writeConfig(config);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                claudeSettingsManager
         );
 
         // Initialize McpServerManager
         this.mcpServerManager = new McpServerManager(
-            gson,
-            (ignored) -> {
-                try {
-                    return readConfig();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            },
-            (config) -> {
-                try {
-                    writeConfig(config);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            },
-            claudeSettingsManager
+                gson,
+                (ignored) -> {
+                    try {
+                        return readConfig();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                (config) -> {
+                    try {
+                        writeConfig(config);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                claudeSettingsManager
         );
 
         // Initialize ProviderManager
         this.providerManager = new ProviderManager(
-            gson,
-            (ignored) -> {
-                try {
-                    return readConfig();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            },
-            (config) -> {
-                try {
-                    writeConfig(config);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            },
-            pathManager,
-            claudeSettingsManager
+                gson,
+                (ignored) -> {
+                    try {
+                        return readConfig();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                (config) -> {
+                    try {
+                        writeConfig(config);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                pathManager,
+                claudeSettingsManager
         );
 
         // Initialize CodexSettingsManager
@@ -146,23 +146,23 @@ public class CodemossSettingsService {
 
         // Initialize CodexProviderManager
         this.codexProviderManager = new CodexProviderManager(
-            gson,
-            (ignored) -> {
-                try {
-                    return readConfig();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            },
-            (config) -> {
-                try {
-                    writeConfig(config);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            },
-            pathManager,
-            codexSettingsManager
+                gson,
+                (ignored) -> {
+                    try {
+                        return readConfig();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                (config) -> {
+                    try {
+                        writeConfig(config);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                pathManager,
+                codexSettingsManager
         );
     }
 
@@ -238,7 +238,7 @@ public class CodemossSettingsService {
         JsonObject claude = new JsonObject();
         JsonObject providers = new JsonObject();
 
-        claude.addProperty("current", "");
+        claude.addProperty("current", ProviderManager.LOCAL_SETTINGS_PROVIDER_ID);
         claude.add("providers", providers);
         config.add("claude", claude);
 
@@ -313,6 +313,7 @@ public class CodemossSettingsService {
 
     /**
      * Get the commit AI prompt.
+     *
      * @return commit prompt
      */
     public String getCommitPrompt() throws IOException {
@@ -329,6 +330,7 @@ public class CodemossSettingsService {
 
     /**
      * Set the commit AI prompt.
+     *
      * @param prompt commit prompt
      */
     public void setCommitPrompt(String prompt) throws IOException {
@@ -345,6 +347,7 @@ public class CodemossSettingsService {
 
     /**
      * Get streaming configuration.
+     *
      * @param projectPath project path
      * @return whether streaming is enabled
      */
@@ -373,8 +376,9 @@ public class CodemossSettingsService {
 
     /**
      * Set streaming configuration.
+     *
      * @param projectPath project path
-     * @param enabled whether to enable
+     * @param enabled     whether to enable
      */
     public void setStreamingEnabled(String projectPath, boolean enabled) throws IOException {
         JsonObject config = readConfig();
@@ -402,6 +406,7 @@ public class CodemossSettingsService {
 
     /**
      * Get auto-open file configuration.
+     *
      * @param projectPath project path
      * @return whether auto-open file is enabled
      */
@@ -430,8 +435,9 @@ public class CodemossSettingsService {
 
     /**
      * Set auto-open file configuration.
+     *
      * @param projectPath project path
-     * @param enabled whether to enable
+     * @param enabled     whether to enable
      */
     public void setAutoOpenFileEnabled(String projectPath, boolean enabled) throws IOException {
         JsonObject config = readConfig();
@@ -459,6 +465,7 @@ public class CodemossSettingsService {
 
     /**
      * Get Codex sandbox mode configuration.
+     *
      * @param projectPath project path
      * @return sandbox mode (workspace-write or danger-full-access)
      */
@@ -487,6 +494,7 @@ public class CodemossSettingsService {
 
     /**
      * Set Codex sandbox mode configuration.
+     *
      * @param projectPath project path
      * @param sandboxMode sandbox mode (workspace-write or danger-full-access)
      */
@@ -687,7 +695,7 @@ public class CodemossSettingsService {
      * Get a PromptManager for the specified scope.
      * Creates managers on-demand using PromptManagerFactory.
      *
-     * @param scope The prompt scope (GLOBAL or PROJECT)
+     * @param scope   The prompt scope (GLOBAL or PROJECT)
      * @param project The IntelliJ Project instance (required for PROJECT scope, can be null for GLOBAL scope)
      * @return An AbstractPromptManager instance for the specified scope
      */
@@ -698,7 +706,7 @@ public class CodemossSettingsService {
     /**
      * Get prompts from the specified scope.
      *
-     * @param scope The prompt scope (GLOBAL or PROJECT)
+     * @param scope   The prompt scope (GLOBAL or PROJECT)
      * @param project The IntelliJ Project instance (required for PROJECT scope, can be null for GLOBAL scope)
      * @return List of prompts
      * @throws IOException if reading fails
@@ -710,8 +718,8 @@ public class CodemossSettingsService {
     /**
      * Add a prompt to the specified scope.
      *
-     * @param prompt The prompt to add
-     * @param scope The prompt scope (GLOBAL or PROJECT)
+     * @param prompt  The prompt to add
+     * @param scope   The prompt scope (GLOBAL or PROJECT)
      * @param project The IntelliJ Project instance (required for PROJECT scope, can be null for GLOBAL scope)
      * @throws IOException if writing fails
      */
@@ -722,9 +730,9 @@ public class CodemossSettingsService {
     /**
      * Update a prompt in the specified scope.
      *
-     * @param id The prompt ID
+     * @param id      The prompt ID
      * @param updates The updates to apply
-     * @param scope The prompt scope (GLOBAL or PROJECT)
+     * @param scope   The prompt scope (GLOBAL or PROJECT)
      * @param project The IntelliJ Project instance (required for PROJECT scope, can be null for GLOBAL scope)
      * @throws IOException if writing fails
      */
@@ -735,8 +743,8 @@ public class CodemossSettingsService {
     /**
      * Delete a prompt from the specified scope.
      *
-     * @param id The prompt ID
-     * @param scope The prompt scope (GLOBAL or PROJECT)
+     * @param id      The prompt ID
+     * @param scope   The prompt scope (GLOBAL or PROJECT)
      * @param project The IntelliJ Project instance (required for PROJECT scope, can be null for GLOBAL scope)
      * @return true if deleted, false if not found
      * @throws IOException if writing fails
@@ -748,8 +756,8 @@ public class CodemossSettingsService {
     /**
      * Get a prompt by ID from the specified scope.
      *
-     * @param id The prompt ID
-     * @param scope The prompt scope (GLOBAL or PROJECT)
+     * @param id      The prompt ID
+     * @param scope   The prompt scope (GLOBAL or PROJECT)
      * @param project The IntelliJ Project instance (required for PROJECT scope, can be null for GLOBAL scope)
      * @return The prompt JsonObject, or null if not found
      * @throws IOException if reading fails
@@ -762,9 +770,9 @@ public class CodemossSettingsService {
      * Batch import prompts to the specified scope.
      *
      * @param promptsToImport The prompts to import
-     * @param strategy The conflict resolution strategy
-     * @param scope The prompt scope (GLOBAL or PROJECT)
-     * @param project The IntelliJ Project instance (required for PROJECT scope, can be null for GLOBAL scope)
+     * @param strategy        The conflict resolution strategy
+     * @param scope           The prompt scope (GLOBAL or PROJECT)
+     * @param project         The IntelliJ Project instance (required for PROJECT scope, can be null for GLOBAL scope)
      * @return A map containing the results of the import operation
      * @throws IOException if writing fails
      */
@@ -776,6 +784,7 @@ public class CodemossSettingsService {
 
     /**
      * Get a PromptManager (defaults to GLOBAL scope).
+     *
      * @deprecated Use {@link #getPromptManager(PromptScope, Project)} instead
      */
     @Deprecated
@@ -785,6 +794,7 @@ public class CodemossSettingsService {
 
     /**
      * Get prompts (defaults to GLOBAL scope).
+     *
      * @deprecated Use {@link #getPrompts(PromptScope, Project)} instead
      */
     @Deprecated
@@ -794,6 +804,7 @@ public class CodemossSettingsService {
 
     /**
      * Add a prompt (defaults to GLOBAL scope).
+     *
      * @deprecated Use {@link #addPrompt(JsonObject, PromptScope, Project)} instead
      */
     @Deprecated
@@ -803,6 +814,7 @@ public class CodemossSettingsService {
 
     /**
      * Update a prompt (defaults to GLOBAL scope).
+     *
      * @deprecated Use {@link #updatePrompt(String, JsonObject, PromptScope, Project)} instead
      */
     @Deprecated
@@ -812,6 +824,7 @@ public class CodemossSettingsService {
 
     /**
      * Delete a prompt (defaults to GLOBAL scope).
+     *
      * @deprecated Use {@link #deletePrompt(String, PromptScope, Project)} instead
      */
     @Deprecated
@@ -821,6 +834,7 @@ public class CodemossSettingsService {
 
     /**
      * Get a prompt by ID (defaults to GLOBAL scope).
+     *
      * @deprecated Use {@link #getPrompt(String, PromptScope, Project)} instead
      */
     @Deprecated
@@ -832,6 +846,7 @@ public class CodemossSettingsService {
 
     /**
      * Get whether sound notification is enabled.
+     *
      * @return whether sound notification is enabled, default is false
      */
     public boolean getSoundNotificationEnabled() throws IOException {
@@ -851,6 +866,7 @@ public class CodemossSettingsService {
 
     /**
      * Set whether sound notification is enabled.
+     *
      * @param enabled whether to enable
      */
     public void setSoundNotificationEnabled(boolean enabled) throws IOException {
@@ -871,6 +887,7 @@ public class CodemossSettingsService {
 
     /**
      * Get custom sound file path.
+     *
      * @return custom sound path, null means use default sound
      */
     public String getCustomSoundPath() throws IOException {
@@ -890,6 +907,7 @@ public class CodemossSettingsService {
 
     /**
      * Set custom sound file path.
+     *
      * @param path file path, null means use default sound
      */
     public void setCustomSoundPath(String path) throws IOException {
@@ -915,6 +933,7 @@ public class CodemossSettingsService {
 
     /**
      * Get whether sound should only play when IDE window is not focused.
+     *
      * @return whether only-when-unfocused is enabled, default is false
      */
     public boolean getSoundOnlyWhenUnfocused() throws IOException {
@@ -934,6 +953,7 @@ public class CodemossSettingsService {
 
     /**
      * Set whether sound should only play when IDE window is not focused.
+     *
      * @param enabled whether to enable
      */
     public void setSoundOnlyWhenUnfocused(boolean enabled) throws IOException {
@@ -954,6 +974,7 @@ public class CodemossSettingsService {
 
     /**
      * Get selected sound ID.
+     *
      * @return sound ID (e.g. "default", "chime", "bell", "ding", "success", "custom"), defaults to "default"
      */
     public String getSelectedSound() throws IOException {
@@ -973,6 +994,7 @@ public class CodemossSettingsService {
 
     /**
      * Set selected sound ID.
+     *
      * @param soundId sound ID, null or empty means "default"
      */
     public void setSelectedSound(String soundId) throws IOException {
