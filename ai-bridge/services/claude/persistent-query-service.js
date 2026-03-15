@@ -12,7 +12,7 @@ import {
   setModelEnvironmentVariables
 } from '../../utils/model-utils.js';
 import { AsyncStream } from '../../utils/async-stream.js';
-import { canUseTool, requestPlanApproval } from '../../permission-handler.js';
+import { canUseTool, requestPlanApproval, READ_ONLY_TOOLS } from '../../permission-handler.js';
 import { buildContentBlocks, loadAttachments } from './attachment-service.js';
 import { buildIDEContextPrompt } from '../system-prompts.js';
 import { buildQuickFixPrompt } from '../quickfix-prompts.js';
@@ -133,7 +133,11 @@ function shouldAutoApproveTool(permissionMode, toolName) {
   if (!toolName) return false;
   if (INTERACTIVE_TOOLS.has(toolName)) return false;
   if (permissionMode === 'bypassPermissions') return true;
-  if (permissionMode === 'acceptEdits') return ACCEPT_EDITS_AUTO_APPROVE_TOOLS.has(toolName);
+  // acceptEdits: auto-approve EDIT tools + READ_ONLY tools
+  if (permissionMode === 'acceptEdits') {
+    return ACCEPT_EDITS_AUTO_APPROVE_TOOLS.has(toolName) || READ_ONLY_TOOLS.has(toolName);
+  }
+  // default mode: READ_ONLY tools require explicit permission confirmation
   return false;
 }
 

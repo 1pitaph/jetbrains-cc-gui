@@ -16,7 +16,8 @@ import { rewriteToolInputPaths, isDangerousPath } from './permission-safety.js';
 
 // ========== Tool categories for permission control ==========
 
-// READ_ONLY tools: auto-allowed in plan mode and default mode (no side effects)
+// READ_ONLY tools: auto-allowed in plan mode and acceptEdits mode (no side effects);
+// in default mode, require explicit user permission confirmation
 export const READ_ONLY_TOOLS = new Set([
   'Glob',           // Find files by pattern
   'Grep',           // Search file contents
@@ -125,8 +126,8 @@ export async function canUseTool(toolName, input, options = {}) {
     };
   }
 
-  // READ_ONLY tools and AUTO_ALLOW_TOOLS can be auto-allowed (no side effects)
-  if (READ_ONLY_TOOLS.has(toolName) || AUTO_ALLOW_TOOLS.has(toolName)) {
+  // AUTO_ALLOW_TOOLS can always be auto-allowed (no side effects, no permission needed)
+  if (AUTO_ALLOW_TOOLS.has(toolName)) {
     debugLog('AUTO_ALLOW', `Auto-allowing tool: ${toolName}`);
     return {
       behavior: 'allow',
