@@ -12,7 +12,7 @@ import {
   setModelEnvironmentVariables
 } from '../../utils/model-utils.js';
 import { AsyncStream } from '../../utils/async-stream.js';
-import { canUseTool, requestPlanApproval } from '../../permission-handler.js';
+import { canUseTool, requestPlanApproval, READ_ONLY_TOOLS } from '../../permission-handler.js';
 import { buildContentBlocks, loadAttachments } from './attachment-service.js';
 import { buildIDEContextPrompt } from '../system-prompts.js';
 import { buildQuickFixPrompt } from '../quickfix-prompts.js';
@@ -133,7 +133,11 @@ function shouldAutoApproveTool(permissionMode, toolName) {
   if (!toolName) return false;
   if (INTERACTIVE_TOOLS.has(toolName)) return false;
   if (permissionMode === 'bypassPermissions') return true;
-  if (permissionMode === 'acceptEdits') return ACCEPT_EDITS_AUTO_APPROVE_TOOLS.has(toolName);
+  // acceptEdits: auto-approve EDIT tools + READ_ONLY tools
+  if (permissionMode === 'acceptEdits') {
+    return ACCEPT_EDITS_AUTO_APPROVE_TOOLS.has(toolName) || READ_ONLY_TOOLS.has(toolName);
+  }
+  // default mode: READ_ONLY tools require explicit permission confirmation
   return false;
 }
 
@@ -269,7 +273,8 @@ function buildRuntimeSignature(options, systemPromptAppend, streamingEnabled, ru
     additionalDirectories: options.additionalDirectories || [],
     systemPromptAppend: systemPromptAppend || '',
     streamingEnabled: !!streamingEnabled,
-    runtimeSessionEpoch: runtimeSessionEpoch || ''
+    runtimeSessionEpoch: runtimeSessionEpoch || '',
+    model: options.model || ''  // Include model in signature to force runtime recreation on model change
   };
   return JSON.stringify(material);
 }
@@ -594,6 +599,8 @@ function assertRuntimeOwnership(runtime, requestContext) {
 }
 
 const ANONYMOUS_RUNTIME_MAX_IDLE_MS = 10 * 60 * 1000; // 10 minutes
+const SESSION_RUNTIME_MAX_IDLE_MS = 30 * 60 * 1000; // 30 minutes
+const SESSION_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 async function cleanupStaleAnonymousRuntimes() {
   const now = Date.now();
@@ -609,6 +616,24 @@ async function cleanupStaleAnonymousRuntimes() {
     }
   }
 }
+
+// Background cleanup of idle session runtimes, decoupled from the request hot path.
+// Runs every 5 minutes instead of on every acquireRuntime call to avoid O(n) scans.
+const _sessionCleanupTimer = setInterval(async () => {
+  const now = Date.now();
+  for (const [sessionId, runtime] of runtimesBySessionId.entries()) {
+    if (runtime.closed) {
+      runtimesBySessionId.delete(sessionId);
+      continue;
+    }
+    if (now - runtime.lastUsedAt > SESSION_RUNTIME_MAX_IDLE_MS) {
+      console.log(`[DAEMON] Disposing stale session runtime ${sessionId} (idle ${Math.round((now - runtime.lastUsedAt) / 1000)}s)`);
+      await disposeRuntime(runtime);
+    }
+  }
+}, SESSION_CLEANUP_INTERVAL_MS);
+// unref() so the timer does not prevent natural process exit
+_sessionCleanupTimer.unref();
 
 async function acquireRuntime(requestContext) {
   // Periodically clean up idle anonymous runtimes to prevent memory leaks

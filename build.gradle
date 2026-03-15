@@ -29,8 +29,8 @@ checkstyle {
     configFile = file('checkstyle.xml')
 }
 
-group = 'com.github.idea-claude-code-gui'
-version = '0.2.8'
+group = 'com.github.jetbrains-long-gui'
+version = '0.2.9'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -78,6 +78,7 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'javazoom:jlayer:1.0.1'
     implementation 'org.snakeyaml:snakeyaml-engine:3.0.1'
+    testImplementation 'junit:junit:4.13.2'
 
     intellijPlatform {
         def targetIde = project.findProperty('targetIde') ?: 'IC'

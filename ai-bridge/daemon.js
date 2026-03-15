@@ -487,15 +487,60 @@ async function processRequest(request) {
 
   rl.on('close', async () => {
     // stdin closed — Java process disconnected, exit gracefully
+    // Force-exit after 5s to prevent zombie processes when SDK network connections hang
+    const forceExitTimer = setTimeout(() => {
+      _originalStderrWrite('[daemon] Shutdown timeout (5s), forcing exit\n', 'utf8');
+      _originalExit(0);
+    }, 5000);
+    // unref() so this timer doesn't prevent natural exit if cleanup finishes fast
+    forceExitTimer.unref();
+
     try {
       await shutdownPersistentRuntimes();
     } catch (e) {
       _originalStderrWrite(`[daemon] Failed to shutdown persistent runtimes: ${e.message}\n`, 'utf8');
     }
+    clearTimeout(forceExitTimer);
     sendDaemonEvent('shutdown', { reason: 'stdin_closed' });
     isDaemonMode = false;
     _originalExit(0);
   });
+
+  // --- Parent process monitoring ---
+  // Periodically verify the Java parent is still alive. When IDEA crashes or is
+  // force-killed, stdin may not close cleanly, leaving orphan daemon processes.
+  // On Unix, process.ppid changes to 1 (init/launchd) when the parent dies.
+  const initialPpid = process.ppid;
+  const ppidMonitor = setInterval(() => {
+    const currentPpid = process.ppid;
+    // Parent changed to init (1) — reparented after death
+    const reparented = currentPpid !== initialPpid && currentPpid === 1;
+    // Parent PID is gone — kill(pid, 0) throws ESRCH if process doesn't exist.
+    // EPERM means the process exists but we lack permission (PID was recycled by
+    // a privileged process) — treat that as "still alive" to avoid false positives.
+    let parentGone = false;
+    if (!reparented && currentPpid !== 1) {
+      try {
+        process.kill(currentPpid, 0);
+      } catch (err) {
+        if (err.code === 'ESRCH') {
+          parentGone = true;
+        }
+      }
+    }
+    if (reparented || parentGone) {
+      _originalStderrWrite(
+        `[daemon] Parent process (ppid=${initialPpid}) is gone (current ppid=${currentPpid}), exiting\n`,
+        'utf8'
+      );
+      // Parent is dead — skip graceful cleanup to exit immediately.
+      // sendDaemonEvent/shutdownPersistentRuntimes are intentionally omitted:
+      // the Java side cannot receive events, and the OS will reclaim sockets on exit.
+      isDaemonMode = false;
+      _originalExit(0);
+    }
+  }, 10000);
+  ppidMonitor.unref();
 
   // --- Keep alive ---
   // The process stays alive as long as stdin is open (rl keeps the event loop active)

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Claude, OpenAI, Gemini } from '@lobehub/icons';
 import { AVAILABLE_MODELS } from '../types';
 import type { ModelInfo } from '../types';
-import { STORAGE_KEYS } from '../../../types/provider';
+import { readClaudeModelMapping } from '../../../utils/claudeModelMapping';
 
 interface ModelSelectProps {
   value: string;
@@ -58,22 +58,6 @@ const MODEL_ID_TO_MAPPING_KEY: Record<string, string> = {
 };
 
 /**
- * Retrieves model mapping from localStorage.
- * Returns format: { main: '', haiku: '', sonnet: '', opus: '' }
- */
-const getModelMapping = (): Record<string, string> => {
-  try {
-    const mappingStr = localStorage.getItem(STORAGE_KEYS.CLAUDE_MODEL_MAPPING);
-    if (mappingStr) {
-      return JSON.parse(mappingStr);
-    }
-  } catch {
-    // ignore parse errors
-  }
-  return {};
-};
-
-/**
  * Model icon component - displays different icons based on provider type
  */
 const ModelIcon = ({ provider, size = 16 }: { provider?: string; size?: number }) => {
@@ -99,9 +83,7 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const currentModel = models.find(m => m.id === value) || models[0];
-
-  // Cache model mapping to avoid redundant localStorage reads on every render
-  const modelMapping = useMemo(() => getModelMapping(), []);
+  const modelMapping = readClaudeModelMapping();
 
   const getModelLabel = (model: ModelInfo): string => {
     // Check model mapping first (from local settings.json or provider config)

@@ -13,6 +13,54 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: '0.2.9',
+    date: '2026-03-15',
+    content: {
+      en: `✨ Features
+- Rename project to CC GUI (originally Claude Code GUI) to mitigate trademark risks
+- Change default Codex sandbox mode to danger-full-access for broader permissions
+- Add GitHub repository section to community settings with copy-to-clipboard URL
+- Default autoOpenFile to disabled
+
+🐛 Fixes
+- Fix daemon zombie node processes consuming 100% CPU (#634) #3499623985
+- Fix streaming assistant placeholder lost during updateMessages (#650)
+- Fix Codex stdio MCP server status stays on pending (#653) #pwang1984
+- Fix default provider for first-time users (#639) #JackCmd233
+- Fix model switch not taking effect (#638) #hpstream
+- Fix cwd fallback when active file is outside project root (#636) #jhaan83
+- Fix READ_ONLY tools permission in default vs acceptEdits mode
+
+🔧 Improvements
+- Refactor ProviderHandler into 7 focused modules
+- Refactor SettingsHandler into 4 focused modules
+- Refactor useWindowCallbacks into registerCallbacks sub-modules with extracted settings hooks
+- Refactor FileHandler, HistoryHandler, ClaudeHistoryReader, App.tsx into focused modules (major size reduction)
+- Extract Claude model mapping to utility module with tests (#639) #JackCmd233`,
+      zh: `✨ Features
+- 项目重命名为 CC GUI（原 Claude Code GUI），规避商标风险
+- Codex 默认沙箱模式改为 danger-full-access，减少权限使用阻力
+- 社区设置页新增 GitHub 开源地址，支持一键复制
+- autoOpenFile 默认值改为关闭
+
+🐛 Fixes
+- 修复 daemon 僵尸进程导致 100% CPU 占用 (#634) #3499623985
+- 修复流式助手消息占位符在 updateMessages 时丢失 (#650)
+- 修复 Codex stdio MCP 服务器状态持续 pending (#653) #pwang1984
+- 修复首次用户默认 Provider (#639) #JackCmd233
+- 修复切换模型不生效 (#638) #hpstream
+- 修复活动文件在项目外时 cwd 回退错误 (#636) #jhaan83
+- 修复 READ_ONLY 工具权限：默认模式需确认，acceptEdits 模式自动批准
+
+🔧 Improvements
+- 重构 ProviderHandler 为 7 个聚焦模块
+- 重构 SettingsHandler 为 4 个聚焦模块
+- 重构 useWindowCallbacks 为 registerCallbacks 子模块，提取设置 hooks
+- 重构 FileHandler、HistoryHandler、ClaudeHistoryReader、App.tsx 为聚焦模块（大幅缩减体积）
+- 提取 Claude 模型映射到工具模块并添加测试 (#639) #JackCmd233`,
+    },
+  },
+  {
     version: '0.2.8',
     date: '2026-03-12',
     content: {

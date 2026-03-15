@@ -1,3 +1,55 @@
+##### **2026年3月15日（v0.2.9）**
+
+English:
+
+✨ Features
+- Rename project to CC GUI (originally Claude Code GUI) to mitigate trademark risks, update plugin ID and icons
+- Change default Codex sandbox mode to danger-full-access to reduce friction for commands requiring broader permissions (e.g. adb, docker)
+- Add GitHub repository section to community settings page with copy-to-clipboard URL support
+- Default autoOpenFile to disabled (previously enabled by default)
+
+🐛 Fixes
+- Fix daemon zombie node processes consuming 100% CPU: add force-exit timeout, parent-process monitoring, and session idle cleanup (#634) #3499623985
+- Fix streaming assistant placeholder being lost during updateMessages: add turn ID tracking to isolate streaming messages across Java snapshot races (#650)
+- Fix Codex stdio MCP server status that stays on pending (#653) #pwang1984
+- Fix default provider for first-time users: normalize provider ID with robust fallback (#639) #JackCmd233
+- Fix model switch not taking effect: include model in runtime signature to invalidate cache (#638) #hpstream
+- Fix cwd fallback when active file is outside project root: use projectPath as cwd (#636) #jhaan83
+- Fix READ_ONLY tools permission: require confirmation in default mode, auto-approve in acceptEdits mode
+
+🔧 Improvements
+- Refactor ProviderHandler into ClaudeProviderOperations, CodexProviderOperations, ModelProviderHandler, NodePathHandler, PermissionModeHandler, ProviderImportExportSupport, and ProviderOrderingService
+- Refactor SettingsHandler into InputHistoryHandler, ProjectConfigHandler, SoundSettingsHandler, and UsagePushService
+- Refactor useWindowCallbacks into registerCallbacks sub-modules; extract settings hooks into useSettingsBasicActions, useSettingsPageState, useSettingsThemeSync
+- Refactor FileHandler (849→304 lines), HistoryHandler (810→120 lines), ClaudeHistoryReader (1200→350 lines), App.tsx (1951→640 lines) into focused modules
+- Extract Claude model mapping logic to claudeModelMapping utility module with tests (#639) #JackCmd233
+
+中文：
+
+✨ Features
+- 项目重命名为 CC GUI（原 Claude Code GUI），规避商标风险，更新插件 ID 和图标
+- 将 Codex 默认沙箱模式改为 danger-full-access，减少需要广泛权限的命令（如 adb、docker）的使用阻力
+- 社区设置页新增 GitHub 开源地址区域，支持一键复制仓库 URL
+- autoOpenFile 默认值改为关闭（之前默认开启）
+
+🐛 Fixes
+- 修复 daemon 僵尸进程导致 100% CPU 占用：添加强制退出超时、父进程监控和会话空闲清理 (#634) #3499623985
+- 修复流式助手消息占位符在 updateMessages 时丢失：添加 turn ID 跟踪以隔离 Java 快照竞态中的流式消息 (#650)
+- 修复 Codex stdio MCP 服务器状态持续 pending 问题 (#653) #pwang1984
+- 修复首次用户默认 Provider：使用健壮的回退机制规范化 Provider ID (#639) #JackCmd233
+- 修复切换模型不生效：将 model 纳入运行时签名以使缓存失效 (#638) #hpstream
+- 修复活动文件位于项目根目录外时 cwd 回退错误：使用 projectPath 作为 cwd (#636) #jhaan83
+- 修复 READ_ONLY 工具权限：默认模式下需确认，acceptEdits 模式下自动批准
+
+🔧 Improvements
+- 重构 ProviderHandler 为 ClaudeProviderOperations、CodexProviderOperations、ModelProviderHandler、NodePathHandler、PermissionModeHandler、ProviderImportExportSupport 和 ProviderOrderingService
+- 重构 SettingsHandler 为 InputHistoryHandler、ProjectConfigHandler、SoundSettingsHandler 和 UsagePushService
+- 重构 useWindowCallbacks 为 registerCallbacks 子模块；提取设置 hooks 为 useSettingsBasicActions、useSettingsPageState、useSettingsThemeSync
+- 重构 FileHandler（849→304 行）、HistoryHandler（810→120 行）、ClaudeHistoryReader（1200→350 行）、App.tsx（1951→640 行）为聚焦模块
+- 提取 Claude 模型映射逻辑到 claudeModelMapping 工具模块并添加测试 (#639) #JackCmd233
+
+---
+
 ##### **2026年3月12日（v0.2.8）**
 
 English:

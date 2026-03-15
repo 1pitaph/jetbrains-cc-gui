@@ -7,7 +7,8 @@ import { canUseTool, requestPlanApproval } from '../../permission-handler.js';
 
 // ========== Tool categories for permission control ==========
 
-// READ_ONLY tools: auto-allowed in plan mode and default mode (no side effects)
+// READ_ONLY tools: auto-allowed in plan mode and acceptEdits mode (no side effects);
+// in default mode, require explicit user permission confirmation
 export const READ_ONLY_TOOLS = new Set([
   'Glob',           // Find files by pattern
   'Grep',           // Search file contents
@@ -110,8 +111,11 @@ export function shouldAutoApproveTool(permissionMode, toolName) {
   if (INTERACTIVE_TOOLS.has(toolName)) return false;
   // bypassPermissions: auto-approve all tools except interactive ones
   if (permissionMode === 'bypassPermissions') return true;
-  // acceptEdits: auto-approve EDIT tools
-  if (permissionMode === 'acceptEdits') return ACCEPT_EDITS_AUTO_APPROVE_TOOLS.has(toolName);
+  // acceptEdits: auto-approve EDIT tools + READ_ONLY tools
+  if (permissionMode === 'acceptEdits') {
+    return ACCEPT_EDITS_AUTO_APPROVE_TOOLS.has(toolName) || READ_ONLY_TOOLS.has(toolName);
+  }
+  // default mode: READ_ONLY tools require explicit permission confirmation
   return false;
 }
 
