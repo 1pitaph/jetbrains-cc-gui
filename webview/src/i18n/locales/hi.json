@@ -1214,6 +1214,13 @@
     "emptyPrompt": "Please enter a prompt first",
     "copyEnhanced": "Copy Enhanced"
   },
+  "fileContext": {
+    "placeholder": "File Context",
+    "enableTitle": "Enable File Context?",
+    "enableDescription": "When enabled, the currently opened file path in the editor will be sent to AI. Note: only the file path is transmitted, not the file content.",
+    "enable": "Enable",
+    "cancel": "Cancel"
+  },
   "rewind": {
     "title": "फ़ाइलों को पिछली स्थिति में पुनर्स्थापित करें",
     "tooltip": "इस संदेश पर फ़ाइलों को उनकी स्थिति में पुनर्स्थापित करें",

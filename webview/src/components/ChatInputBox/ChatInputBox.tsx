@@ -121,6 +121,8 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
       addToast,
       messageQueue,
       onRemoveFromQueue,
+      autoOpenFileEnabled,
+      onAutoOpenFileEnabledChange,
     }: ChatInputBoxProps,
     ref: React.ForwardedRef<ChatInputBoxHandle>
   ) => {
@@ -801,6 +803,17 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
       handleInput();
     }, [ctxMenu.savedRange, ctxMenu.selectedText, ctxMenu.targetFileTag, handleInput]);
 
+    // Combined callback: clear file context AND disable autoOpenFile
+    const handleClearFileContext = useCallback(() => {
+      onClearContext?.();
+      onAutoOpenFileEnabledChange?.(false);
+    }, [onClearContext, onAutoOpenFileEnabledChange]);
+
+    // Callback for enabling file context from placeholder
+    const handleRequestEnableFileContext = useCallback(() => {
+      onAutoOpenFileEnabledChange?.(true);
+    }, [onAutoOpenFileEnabledChange]);
+
     return (
       <div
         className={`chat-input-box ${isResizingInputBox ? 'is-resizing' : ''}`}
@@ -824,7 +837,7 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
           usageUsedTokens={usageUsedTokens}
           usageMaxTokens={usageMaxTokens}
           showUsage={showUsage}
-          onClearContext={onClearContext}
+          onClearContext={handleClearFileContext}
           onAddAttachment={handleAddAttachment}
           selectedAgent={selectedAgent}
           onClearAgent={() => onAgentSelect?.(null)}
@@ -836,6 +849,8 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
           onRemoveFromQueue={onRemoveFromQueue}
           showOpenSourceBanner={showOpenSourceBanner}
           onDismissOpenSourceBanner={handleDismissOpenSourceBanner}
+          autoOpenFileEnabled={autoOpenFileEnabled}
+          onRequestEnableFileContext={handleRequestEnableFileContext}
         />
 
         {/* Input area */}

@@ -593,6 +593,8 @@ const App = () => {
               addToast={addToast}
               messageQueue={messageQueue}
               onRemoveFromQueue={dequeueMessage}
+              autoOpenFileEnabled={autoOpenFileEnabled}
+              onAutoOpenFileEnabledChange={handleAutoOpenFileEnabledChange}
             />
           </div>
         </>

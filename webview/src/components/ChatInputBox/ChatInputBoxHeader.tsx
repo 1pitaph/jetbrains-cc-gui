@@ -30,6 +30,8 @@ export function ChatInputBoxHeader({
   onRemoveFromQueue,
   showOpenSourceBanner,
   onDismissOpenSourceBanner,
+  autoOpenFileEnabled,
+  onRequestEnableFileContext,
 }: {
   sdkInstalled: boolean;
   sdkStatusLoading: boolean;
@@ -56,6 +58,8 @@ export function ChatInputBoxHeader({
   onRemoveFromQueue?: (id: string) => void;
   showOpenSourceBanner?: boolean;
   onDismissOpenSourceBanner?: () => void;
+  autoOpenFileEnabled?: boolean;
+  onRequestEnableFileContext?: () => void;
 }) {
   return (
     <>
@@ -133,6 +137,8 @@ export function ChatInputBoxHeader({
         onRewind={onRewind}
         statusPanelExpanded={statusPanelExpanded}
         onToggleStatusPanel={onToggleStatusPanel}
+        autoOpenFileEnabled={autoOpenFileEnabled}
+        onRequestEnableFileContext={onRequestEnableFileContext}
       />
     </>
   );

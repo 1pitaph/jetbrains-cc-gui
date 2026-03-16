@@ -1215,6 +1215,13 @@
     "emptyPrompt": "Please enter a prompt first",
     "copyEnhanced": "Copy Enhanced"
   },
+  "fileContext": {
+    "placeholder": "Contexte de fichier",
+    "enableTitle": "Activer le contexte de fichier ?",
+    "enableDescription": "Lorsque activé, le chemin du fichier ouvert dans l'éditeur sera envoyé à l'IA. Note : seul le chemin du fichier est transmis, pas son contenu.",
+    "enable": "Activer",
+    "cancel": "Annuler"
+  },
   "rewind": {
     "title": "Restaurer les fichiers à l'état précédent",
     "tooltip": "Restaurer les fichiers à leur état à ce message",

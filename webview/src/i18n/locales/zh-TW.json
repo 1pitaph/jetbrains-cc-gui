@@ -1220,6 +1220,13 @@
     "emptyPrompt": "Please enter a prompt first",
     "copyEnhanced": "Copy Enhanced"
   },
+  "fileContext": {
+    "placeholder": "檔案上下文",
+    "enableTitle": "開啟檔案上下文？",
+    "enableDescription": "開啟後，編輯器中當前打開的檔案路徑將發送給 AI。注意：僅傳遞檔案路徑，不會傳遞檔案內容。",
+    "enable": "開啟",
+    "cancel": "取消"
+  },
   "rewind": {
     "title": "回溯檔案到之前的狀態",
     "tooltip": "將檔案恢復到此訊息時的狀態",

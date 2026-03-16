@@ -240,3 +240,143 @@
   color: var(--text-primary);
 }
 
+/* ============================================================
+   File Context Empty Placeholder (dashed rectangle)
+   ============================================================ */
+.context-file-placeholder-wrapper {
+  position: relative;
+}
+
+button.context-file-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border: 1px dashed var(--input-border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  opacity: 0.7;
+  outline: none;
+}
+
+button.context-file-placeholder:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+  opacity: 1;
+  background: var(--button-hover);
+}
+
+button.context-file-placeholder:focus-visible {
+  border-color: var(--focus-border, #007acc);
+  opacity: 1;
+}
+
+.context-file-placeholder .codicon {
+  font-size: 12px;
+}
+
+.context-file-placeholder .placeholder-text {
+  white-space: nowrap;
+}
+
+/* ============================================================
+   File Context Enable Confirmation Popover
+   ============================================================ */
+.file-context-confirm-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 1000;
+  min-width: 260px;
+  max-width: 320px;
+  background: var(--dropdown-bg);
+  border: 1px solid var(--dropdown-border);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  animation: popover-fade-in 0.15s ease-out;
+}
+
+.file-context-confirm-popover::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  border: 6px solid transparent;
+  border-top-color: var(--dropdown-border);
+}
+
+.file-context-confirm-popover::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 17px;
+  border: 5px solid transparent;
+  border-top-color: var(--dropdown-bg);
+}
+
+.popover-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.popover-description {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.popover-btn {
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid var(--input-border);
+  transition: all 0.15s;
+}
+
+.popover-btn-cancel {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.popover-btn-cancel:hover {
+  background: var(--button-hover);
+  color: var(--text-primary);
+}
+
+.popover-btn-confirm {
+  background: var(--button-primary-bg, #007acc);
+  color: var(--button-primary-fg, #fff);
+  border-color: var(--button-primary-bg, #007acc);
+}
+
+.popover-btn-confirm:hover {
+  opacity: 0.9;
+}
+
+@keyframes popover-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

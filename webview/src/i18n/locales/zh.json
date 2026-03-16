@@ -1343,6 +1343,13 @@
     "emptyPrompt": "请先输入提示词",
     "copyEnhanced": "复制增强版本"
   },
+  "fileContext": {
+    "placeholder": "文件上下文",
+    "enableTitle": "开启文件上下文？",
+    "enableDescription": "开启后，编辑器中当前打开的文件路径将发送给 AI。注意：仅传递文件路径，不会传递文件内容。",
+    "enable": "开启",
+    "cancel": "取消"
+  },
   "rewind": {
     "title": "回溯文件到之前的状态",
     "tooltip": "回溯",
