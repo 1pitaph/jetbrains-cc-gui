@@ -218,19 +218,82 @@ public class DiffReviewService {
 
         boolean replaceAll = inputs.has("replace_all") && inputs.get("replace_all").getAsBoolean();
 
-        if (replaceAll) {
-            return originalContent.replace(oldString, newString);
-        } else {
+        String effectiveOldString = oldString;
+        String effectiveNewString = newString;
+
+        if (!replaceAll) {
+            // Try exact match first
             int index = originalContent.indexOf(oldString);
+
+            // Common mismatch on Windows: tool input uses LF but file content is CRLF
+            if (index < 0) {
+                String crlfOld = oldString.replace("\n", "\r\n");
+                if (!crlfOld.equals(oldString)) {
+                    int crlfIndex = originalContent.indexOf(crlfOld);
+                    if (crlfIndex >= 0) {
+                        index = crlfIndex;
+                        effectiveOldString = crlfOld;
+                        effectiveNewString = newString.replace("\n", "\r\n");
+                        LOG.info("DiffReview: Matched old_string after normalizing LF->CRLF");
+                    }
+                }
+            }
+
+            // Inverse mismatch: tool input CRLF, file content LF
+            if (index < 0) {
+                String lfOld = oldString.replace("\r\n", "\n");
+                if (!lfOld.equals(oldString)) {
+                    int lfIndex = originalContent.indexOf(lfOld);
+                    if (lfIndex >= 0) {
+                        index = lfIndex;
+                        effectiveOldString = lfOld;
+                        effectiveNewString = newString.replace("\r\n", "\n");
+                        LOG.info("DiffReview: Matched old_string after normalizing CRLF->LF");
+                    }
+                }
+            }
+
             if (index >= 0) {
                 return originalContent.substring(0, index)
-                        + newString
-                        + originalContent.substring(index + oldString.length());
-            } else {
-                LOG.warn("DiffReview: old_string not found in file content");
-                return null;
+                        + effectiveNewString
+                        + originalContent.substring(index + effectiveOldString.length());
+            }
+
+            LOG.warn("DiffReview: old_string not found in file content (fileLength=" + originalContent.length()
+                    + ", oldStringLength=" + oldString.length() + ")");
+            return null;
+        }
+
+        // For replace_all
+        String result = originalContent.replace(oldString, newString);
+        if (!result.equals(originalContent)) {
+            return result;
+        }
+
+        // For replace_all, also try line-ending variants to avoid silent no-ops
+        String crlfOld = oldString.replace("\n", "\r\n");
+        if (!crlfOld.equals(oldString)) {
+            String crlfNew = newString.replace("\n", "\r\n");
+            result = originalContent.replace(crlfOld, crlfNew);
+            if (!result.equals(originalContent)) {
+                LOG.info("DiffReview: Matched old_string after normalizing LF->CRLF (replace_all)");
+                return result;
             }
         }
+
+        String lfOld = oldString.replace("\r\n", "\n");
+        if (!lfOld.equals(oldString)) {
+            String lfNew = newString.replace("\r\n", "\n");
+            result = originalContent.replace(lfOld, lfNew);
+            if (!result.equals(originalContent)) {
+                LOG.info("DiffReview: Matched old_string after normalizing CRLF->LF (replace_all)");
+                return result;
+            }
+        }
+
+        LOG.warn("DiffReview: old_string not found in file content (replace_all, fileLength=" + originalContent.length()
+                + ", oldStringLength=" + oldString.length() + ")");
+        return null;
     }
 
     /**

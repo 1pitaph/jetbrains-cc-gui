@@ -1498,16 +1498,20 @@ public class PermissionService {
 
         Project matchedProject = findProjectByCwd(request);
 
-        // Retry once if dialogShowers is empty (timing issue: registration may not be complete yet)
+        // Retry if dialogShowers is empty (timing issue: webview registration may not be complete yet)
+        // Wait up to 2 seconds for dialog showers to register (handles open-tab scenario)
         if (matchedProject == null && this.dialogShowers.isEmpty()) {
-            LOG.info("[DIFF_REVIEW] dialogShowers empty, retrying after 100ms...");
+            LOG.info("[DIFF_REVIEW] dialogShowers empty, waiting for registration (max 2s)...");
             try {
-                Thread.sleep(100);
+                for (int i = 0; i < 20 && this.dialogShowers.isEmpty(); i++) {
+                    Thread.sleep(100);
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
             matchedProject = findProjectByCwd(request);
-            LOG.info("[DIFF_REVIEW] Retry result: " + (matchedProject != null ? matchedProject.getName() : "null"));
+            LOG.info("[DIFF_REVIEW] Retry result after " + (!this.dialogShowers.isEmpty() ? "registration" : "timeout")
+                    + ": " + (matchedProject != null ? matchedProject.getName() : "null"));
         }
 
         if (matchedProject == null) {
