@@ -24,6 +24,11 @@ import {
   useFileChangesManagement,
   useModelProviderState,
 } from './hooks';
+import {
+  NEW_SESSION_COMMANDS,
+  RESUME_COMMANDS,
+  PLAN_COMMANDS,
+} from './hooks/useMessageSender';
 import type { ContextInfo, ViewMode } from './hooks';
 import { formatTime } from './utils/helpers';
 import { extractMarkdownContent } from './utils/copyUtils';
@@ -300,6 +305,7 @@ const App = () => {
     setMessages, setLoading, setLoadingStartTime, setStreamingActive,
     setSettingsInitialTab, setCurrentView,
     forceCreateNewSession,
+    handleModeSelect,
   });
 
   // ── Message queue ──
@@ -309,16 +315,32 @@ const App = () => {
     dequeue: dequeueMessage,
   } = useMessageQueue({ isLoading: loading, onExecute: executeMessage });
 
-  // handleSubmit with queue support (new session commands bypass loading check)
+  // handleSubmit with queue support (new session and local commands bypass loading check)
   const handleSubmit = useCallback((content: string, attachments?: Attachment[]) => {
     const text = content.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
     if (!text && !hasAttachments) return;
-    // New session commands work even while loading
+    // Local commands work even while loading
     if (text.startsWith('/')) {
       const command = text.split(/\s+/)[0].toLowerCase();
-      if (['/new', '/clear', '/reset'].includes(command)) {
+      // New session commands
+      if (NEW_SESSION_COMMANDS.has(command)) {
         forceCreateNewSession();
+        return;
+      }
+      // /resume - open history view
+      if (RESUME_COMMANDS.has(command)) {
+        setCurrentView('history');
+        return;
+      }
+      // /plan - switch to plan mode
+      if (PLAN_COMMANDS.has(command)) {
+        if (currentProvider === 'codex') {
+          addToast(t('chat.planModeNotAvailableForCodex', { defaultValue: 'Plan mode is not available for Codex provider' }), 'warning');
+        } else {
+          handleModeSelect('plan');
+          addToast(t('chat.planModeEnabled', { defaultValue: 'Plan mode enabled' }), 'info');
+        }
         return;
       }
     }
@@ -328,7 +350,7 @@ const App = () => {
       return;
     }
     hookHandleSubmit(content, attachments);
-  }, [loading, enqueueMessage, hookHandleSubmit, forceCreateNewSession]);
+  }, [loading, enqueueMessage, hookHandleSubmit, forceCreateNewSession, currentProvider, handleModeSelect, setCurrentView, addToast, t]);
 
   // ── File changes management ──
   const {
