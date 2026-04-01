@@ -77,6 +77,7 @@ export function useSessionManagement({
   const [showInterruptConfirm, setShowInterruptConfirm] = useState(false);
   const pendingActionRef = useRef<'newSession' | null>(null);
   const suppressNextStatusToastRef = useRef(false);
+  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const historyDataRef = useRef(historyData);
   historyDataRef.current = historyData;
 
@@ -101,6 +102,25 @@ export function useSessionManagement({
     setUsagePercentage(0);
     setUsageUsedTokens(undefined);
     setUsageMaxTokens(undefined);
+
+    // FIX: Safety timeout to auto-release the session transition guard.
+    // If the backend's historyLoadComplete signal is lost (e.g., JCEF IPC failure
+    // during webview reload, or a backend error that prevents the callback),
+    // __sessionTransitioning would remain true permanently, silently dropping ALL
+    // message callbacks (updateMessages, onContentDelta, onStreamStart, etc.).
+    // This makes the webview appear "dead" while the backend continues working.
+    if (transitionTimeoutRef.current !== null) {
+      clearTimeout(transitionTimeoutRef.current);
+    }
+    const token = window.__sessionTransitionToken;
+    transitionTimeoutRef.current = setTimeout(() => {
+      transitionTimeoutRef.current = null;
+      if (window.__sessionTransitioning && window.__sessionTransitionToken === token) {
+        console.warn('[SessionManagement] Transition guard timed out — auto-releasing');
+        window.__sessionTransitioning = false;
+        window.__sessionTransitionToken = null;
+      }
+    }, 15_000); // 15 seconds — generous enough for slow history loads
   }, [clearToasts, setStatus, setLoadingState, setIsThinking, setStreamingActive, setMessages, setCurrentSessionId, setCustomSessionTitle, setUsagePercentage, setUsageUsedTokens, setUsageMaxTokens]);
 
   // Create new session

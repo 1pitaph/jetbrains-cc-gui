@@ -92,23 +92,6 @@ public class ClaudeChatWindow {
 
         this.mainPanel.setBackground(com.github.claudecodegui.util.ThemeConfigService.getBackgroundColor());
 
-        this.webviewWatchdog = new WebviewWatchdog(
-                mainPanel,
-                () -> browser,
-                htmlLoader,
-                () -> webviewInitializer.recreateWebview("watchdog_recreate"),
-                () -> disposed
-        );
-
-        this.session = new ClaudeSession(project, claudeSDKBridge, codexSDKBridge);
-
-        this.chatWindowDelegate = new ChatWindowDelegate(createDelegateHost());
-        chatWindowDelegate.loadPermissionModeFromSettings();
-        chatWindowDelegate.loadNodePathFromSettings();
-        chatWindowDelegate.syncActiveProvider();
-        chatWindowDelegate.initializeHandlers();
-        this.sessionId = chatWindowDelegate.setupPermissionService();
-
         this.streamCoalescer = new StreamMessageCoalescer(new StreamMessageCoalescer.JsCallbackTarget() {
             @Override
             public void callJavaScript(String functionName, String... args) {
@@ -130,6 +113,24 @@ public class ClaudeChatWindow {
                 return handlerContext;
             }
         });
+
+        this.webviewWatchdog = new WebviewWatchdog(
+                mainPanel,
+                () -> browser,
+                htmlLoader,
+                () -> webviewInitializer.recreateWebview("watchdog_recreate"),
+                () -> disposed,
+                () -> streamCoalescer.isStreamActive()
+        );
+
+        this.session = new ClaudeSession(project, claudeSDKBridge, codexSDKBridge);
+
+        this.chatWindowDelegate = new ChatWindowDelegate(createDelegateHost());
+        chatWindowDelegate.loadPermissionModeFromSettings();
+        chatWindowDelegate.loadNodePathFromSettings();
+        chatWindowDelegate.syncActiveProvider();
+        chatWindowDelegate.initializeHandlers();
+        this.sessionId = chatWindowDelegate.setupPermissionService();
 
         this.sessionLifecycleManager = new SessionLifecycleManager(new SessionLifecycleManager.SessionHost() {
             @Override

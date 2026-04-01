@@ -491,10 +491,22 @@ public class ChatWindowDelegate {
                 host.callJavaScript("showSummary", JsUtils.escapeJs(summary));
             }
 
+            // FIX: Restore streaming state after webview reload.
+            // When the watchdog reloads the webview during active streaming, the frontend's
+            // isStreamingRef is reset to false, causing all onContentDelta callbacks to be
+            // silently dropped.  Re-sending onStreamStart ensures the frontend accepts
+            // subsequent streaming deltas and the stall watchdog is properly initialized.
+            boolean streamActive = host.getStreamCoalescer().isStreamActive();
+            if (streamActive) {
+                LOG.debug("Replaying streaming state to frontend (session was actively streaming during reload)");
+                host.callJavaScript("onStreamStart");
+            }
+
             LOG.info("Replayed current session state to frontend: sessionId="
                     + (sessionId != null ? sessionId : "(none)")
                     + ", messages=" + messages.size()
-                    + ", loading=" + session.isLoading());
+                    + ", loading=" + session.isLoading()
+                    + ", streaming=" + streamActive);
         } catch (Exception e) {
             LOG.warn("Failed to replay current session state to frontend: " + e.getMessage(), e);
         }

@@ -53,18 +53,36 @@ public class WebviewWatchdog {
         boolean isDisposed();
     }
 
+    /**
+     * Checks if the backend is currently streaming.
+     * During active streaming, JCEF IPC saturation is expected and reloading
+     * the webview would destroy React state while the backend continues working.
+     */
+    public interface StreamActiveCheck {
+        boolean isStreamActive();
+    }
+
+    // Extended timeout during active streaming — IPC saturation is expected
+    // when pushing large message payloads.  Reloading would destroy React state
+    // and the backend would continue pushing to a blank page.
+    private static final long STREAMING_HEARTBEAT_TIMEOUT_MS = 180_000L; // 3 minutes
+
+    private final StreamActiveCheck streamActiveCheck;
+
     public WebviewWatchdog(
             JPanel mainPanel,
             BrowserProvider browserProvider,
             HtmlLoader htmlLoader,
             Runnable onRecreateWebview,
-            DisposedCheck disposedCheck
+            DisposedCheck disposedCheck,
+            StreamActiveCheck streamActiveCheck
     ) {
         this.mainPanel = mainPanel;
         this.browserProvider = browserProvider;
         this.htmlLoader = htmlLoader;
         this.onRecreateWebview = onRecreateWebview;
         this.disposedCheck = disposedCheck;
+        this.streamActiveCheck = streamActiveCheck;
     }
 
     /**
@@ -156,7 +174,14 @@ public class WebviewWatchdog {
             return;
         }
 
-        boolean stalled = heartbeatAgeMs > HEARTBEAT_TIMEOUT_MS || rafAgeMs > HEARTBEAT_TIMEOUT_MS;
+        // During active streaming, JCEF IPC saturation is expected with large payloads.
+        // Use a much longer timeout to avoid destroying React state unnecessarily.
+        // Reloading during streaming causes "fake death": backend continues working
+        // but the webview shows empty content because streaming state is lost.
+        boolean streaming = streamActiveCheck.isStreamActive();
+        long effectiveTimeoutMs = streaming ? STREAMING_HEARTBEAT_TIMEOUT_MS : HEARTBEAT_TIMEOUT_MS;
+
+        boolean stalled = heartbeatAgeMs > effectiveTimeoutMs || rafAgeMs > effectiveTimeoutMs;
         if (!stalled) {
             stallCount = 0;
             return;
