@@ -348,7 +348,7 @@ public class ProjectConfigHandler {
 
     public void handleGetCommitGenerationEnabled() {
         try {
-            boolean enabled = new CodemossSettingsService().getCommitGenerationEnabled();
+            boolean enabled = settingsService.getCommitGenerationEnabled();
             ApplicationManager.getApplication().invokeLater(() -> {
                 JsonObject r = new JsonObject();
                 r.addProperty("commitGenerationEnabled", enabled);
@@ -369,7 +369,7 @@ public class ProjectConfigHandler {
             JsonObject json = gson.fromJson(content, JsonObject.class);
             boolean enabled = json == null || !json.has("commitGenerationEnabled") || json.get("commitGenerationEnabled").isJsonNull()
                 || json.get("commitGenerationEnabled").getAsBoolean();
-            new CodemossSettingsService().setCommitGenerationEnabled(enabled);
+            settingsService.setCommitGenerationEnabled(enabled);
             LOG.info("[ProjectConfigHandler] Set commit generation enabled: " + enabled);
             final boolean finalVal = enabled;
             ApplicationManager.getApplication().invokeLater(() -> {
@@ -380,13 +380,13 @@ public class ProjectConfigHandler {
         } catch (Exception e) {
             LOG.error("[ProjectConfigHandler] Failed to set commit generation enabled: " + e.getMessage(), e);
             ApplicationManager.getApplication().invokeLater(() ->
-                context.callJavaScript("window.showError", context.escapeJs("保存 AI 生成 Commit 配置失败: " + e.getMessage())));
+                context.callJavaScript("window.showError", context.escapeJs("保存 AI 生成 Commit 配置失败")));
         }
     }
 
     public void handleGetStatusBarWidgetEnabled() {
         try {
-            boolean enabled = new CodemossSettingsService().getStatusBarWidgetEnabled();
+            boolean enabled = settingsService.getStatusBarWidgetEnabled();
             ApplicationManager.getApplication().invokeLater(() -> {
                 JsonObject r = new JsonObject();
                 r.addProperty("statusBarWidgetEnabled", enabled);
@@ -407,7 +407,7 @@ public class ProjectConfigHandler {
             JsonObject json = gson.fromJson(content, JsonObject.class);
             boolean enabled = json == null || !json.has("statusBarWidgetEnabled") || json.get("statusBarWidgetEnabled").isJsonNull()
                 || json.get("statusBarWidgetEnabled").getAsBoolean();
-            new CodemossSettingsService().setStatusBarWidgetEnabled(enabled);
+            settingsService.setStatusBarWidgetEnabled(enabled);
             LOG.info("[ProjectConfigHandler] Set status bar widget enabled: " + enabled);
             final boolean finalVal = enabled;
             ApplicationManager.getApplication().invokeLater(() -> {
@@ -418,7 +418,7 @@ public class ProjectConfigHandler {
         } catch (Exception e) {
             LOG.error("[ProjectConfigHandler] Failed to set status bar widget enabled: " + e.getMessage(), e);
             ApplicationManager.getApplication().invokeLater(() ->
-                context.callJavaScript("window.showError", context.escapeJs("保存状态栏配置失败: " + e.getMessage())));
+                context.callJavaScript("window.showError", context.escapeJs("保存状态栏配置失败")));
         }
     }
 

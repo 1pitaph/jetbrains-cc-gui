@@ -765,6 +765,14 @@ public class DependencyManager {
         return 0;
     }
 
+    /**
+     * Semver-like pattern: major.minor.patch with optional pre-release suffix.
+     * Only allows digits, dots, hyphens, and alphanumeric pre-release tags.
+     * Rejects anything that could be used for npm install argument injection.
+     */
+    private static final java.util.regex.Pattern SEMVER_PATTERN =
+            java.util.regex.Pattern.compile("^\\d+\\.\\d+\\.\\d+([-.][a-zA-Z0-9.]+)*$");
+
     static String normalizeRequestedVersion(String version) {
         if (version == null) {
             return null;
@@ -776,7 +784,12 @@ public class DependencyManager {
         }
 
         if (trimmed.startsWith("v") || trimmed.startsWith("V")) {
-            return trimmed.substring(1);
+            trimmed = trimmed.substring(1);
+        }
+
+        if (!SEMVER_PATTERN.matcher(trimmed).matches()) {
+            LOG.warn("[DependencyManager] Rejected invalid version format: " + version);
+            return null;
         }
 
         return trimmed;

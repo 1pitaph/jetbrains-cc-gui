@@ -227,6 +227,10 @@ public class CodexSettingsManager {
      * Read Codex CLI login account info (email, name) from the JWT id_token in auth.json.
      * Only extracts safe display fields, never credentials or tokens.
      *
+     * <p><b>Security note:</b> The JWT payload is decoded without signature verification.
+     * The returned data is intended <b>only for UI display</b> (email, name, plan type)
+     * and MUST NOT be used for authorization or access-control decisions.</p>
+     *
      * @return JsonObject with email/name, or null if not available
      */
     public JsonObject readCodexCliLoginAccountInfo() {
