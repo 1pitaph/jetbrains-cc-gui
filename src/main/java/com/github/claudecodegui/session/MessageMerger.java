@@ -221,7 +221,12 @@ public class MessageMerger {
         }
 
         if ("thinking".equals(type)) {
-            return textLooksRelated(getThinkingContent(existingBlock), getThinkingContent(incomingBlock));
+            String existingThinking = getThinkingContent(existingBlock);
+            String incomingThinking = getThinkingContent(incomingBlock);
+            if (existingThinking.isEmpty() || incomingThinking.isEmpty()) {
+                return true;
+            }
+            return textLooksRelated(existingThinking, incomingThinking);
         }
 
         return existingBlock.equals(incomingBlock);
@@ -263,8 +268,9 @@ public class MessageMerger {
         // Check suffix-prefix overlap (streaming may produce partial overlaps)
         int maxOverlap = Math.min(existing.length(), incoming.length());
         maxOverlap = Math.min(maxOverlap, 200);
+        int eLen = existing.length();
         for (int overlap = maxOverlap; overlap > 0; overlap--) {
-            if (existing.endsWith(incoming.substring(0, overlap))) {
+            if (existing.regionMatches(eLen - overlap, incoming, 0, overlap)) {
                 return true;
             }
         }

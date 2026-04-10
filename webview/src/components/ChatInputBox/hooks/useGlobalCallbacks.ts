@@ -153,49 +153,40 @@ export function useGlobalCallbacks({
 
   // Register global method: insert code snippet at cursor position
   useEffect(() => {
+    const moveCaretAfterNode = (lastChild: ChildNode | null) => {
+      if (!lastChild) {
+        return;
+      }
+
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.setStartAfter(lastChild);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    };
+
+    const appendExternalSnippetToEnd = (selectionInfo: string) => {
+      if (!editableRef.current) return;
+
+      const existingText = getTextContent();
+      const hasExistingContent = !!existingText.trim();
+      const needsLeadingNewline = hasExistingContent && !/\n\s*$/.test(existingText);
+      const fragment = createTextFragment(
+        `${needsLeadingNewline ? '\n' : ''}${selectionInfo} `
+      );
+      const lastChild = fragment.lastChild;
+
+      editableRef.current.appendChild(fragment);
+      moveCaretAfterNode(lastChild);
+    };
+
     window.insertCodeSnippetAtCursor = (selectionInfo: string) => {
       if (!editableRef.current) return;
 
       // Ensure input box has focus
       editableRef.current.focus();
-
-      // Insert text at cursor position
-      const selection = window.getSelection();
-      if (
-        selection &&
-        selection.rangeCount > 0 &&
-        editableRef.current.contains(selection.anchorNode)
-      ) {
-        // Cursor inside input box, insert at cursor position
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        // Use <br> elements for newlines to ensure proper ArrowUp/Down cursor navigation
-        const fragment = createTextFragment(selectionInfo + ' ');
-        const lastChild = fragment.lastChild;
-        range.insertNode(fragment);
-
-        // Move cursor after inserted content
-        if (lastChild) {
-          range.setStartAfter(lastChild);
-        }
-        range.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      } else {
-        // Cursor not inside input box, append to end
-        const fragment = createTextFragment(selectionInfo + ' ');
-        const lastChild = fragment.lastChild;
-        editableRef.current.appendChild(fragment);
-
-        // Move cursor to end
-        if (lastChild) {
-          const range = document.createRange();
-          range.setStartAfter(lastChild);
-          range.collapse(true);
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-        }
-      }
+      appendExternalSnippetToEnd(selectionInfo);
 
       // Trigger state update
       const newText = getTextContent();
