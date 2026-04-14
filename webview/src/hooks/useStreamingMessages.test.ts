@@ -276,4 +276,110 @@ describe('useStreamingMessages', () => {
       thinking: 'Deep analysis of the problem.',
     });
   });
+
+  it('consolidates multiple backend thinking blocks into one to prevent duplication', () => {
+    const { result } = renderHook(() => useStreamingMessages());
+
+    result.current.streamingContentRef.current = 'Response text.';
+    result.current.streamingTextSegmentsRef.current = ['Response text.'];
+    result.current.streamingThinkingSegmentsRef.current = [
+      'Thinking part 1. Thinking part 2.',
+    ];
+
+    const assistant: ClaudeMessage = {
+      type: 'assistant',
+      content: result.current.streamingContentRef.current,
+      isStreaming: true,
+      raw: {
+        message: {
+          content: [
+            {
+              type: 'thinking',
+              thinking: 'Thinking part 1.',
+              text: 'Thinking part 1.',
+            },
+            {
+              type: 'thinking',
+              thinking: 'Thinking part 1. Thinking part 2.',
+              text: 'Thinking part 1. Thinking part 2.',
+            },
+            {
+              type: 'text',
+              text: 'Response text.',
+            },
+          ],
+        },
+      },
+    };
+
+    const patched = result.current.patchAssistantForStreaming(assistant);
+    const content = ((patched.raw as any).message?.content ?? []) as Array<Record<string, unknown>>;
+
+    const thinkingBlocks = content.filter((b) => b.type === 'thinking');
+    expect(thinkingBlocks).toHaveLength(1);
+    expect(thinkingBlocks[0]).toMatchObject({
+      type: 'thinking',
+      thinking: 'Thinking part 1. Thinking part 2.',
+    });
+    expect(content.filter((b) => b.type === 'text')).toHaveLength(1);
+  });
+
+  it('keeps separate thinking blocks when content is distinct', () => {
+    const { result } = renderHook(() => useStreamingMessages());
+
+    result.current.streamingContentRef.current = 'Text 1. Text 2.';
+    result.current.streamingTextSegmentsRef.current = ['Text 1.', 'Text 2.'];
+    result.current.streamingThinkingSegmentsRef.current = [
+      'Phase 1 thinking.',
+      'Phase 2 thinking.',
+    ];
+
+    const assistant: ClaudeMessage = {
+      type: 'assistant',
+      content: result.current.streamingContentRef.current,
+      isStreaming: true,
+      raw: {
+        message: {
+          content: [
+            {
+              type: 'thinking',
+              thinking: 'Phase 1 thinking.',
+              text: 'Phase 1 thinking.',
+            },
+            {
+              type: 'text',
+              text: 'Text 1.',
+            },
+            {
+              type: 'tool_use',
+              id: 'tool-1',
+              name: 'search',
+              input: { query: 'test' },
+            },
+            {
+              type: 'thinking',
+              thinking: 'Phase 2 thinking.',
+              text: 'Phase 2 thinking.',
+            },
+          ],
+        },
+      },
+    };
+
+    const patched = result.current.patchAssistantForStreaming(assistant);
+    const content = ((patched.raw as any).message?.content ?? []) as Array<Record<string, unknown>>;
+
+    // Smart merge preserves distinct thinking phases when content doesn't overlap
+    const thinkingBlocks = content.filter((b) => b.type === 'thinking');
+    expect(thinkingBlocks).toHaveLength(2); // Two distinct phases, not merged
+    expect(thinkingBlocks[0]).toMatchObject({ thinking: 'Phase 1 thinking.' });
+    expect(thinkingBlocks[1]).toMatchObject({ thinking: 'Phase 2 thinking.' });
+    // Verify positions: first thinking before text, second thinking after tool_use
+    const thinking1Idx = content.findIndex((b) => b.type === 'thinking');
+    const textIdx = content.findIndex((b) => b.type === 'text');
+    const toolIdx = content.findIndex((b) => b.type === 'tool_use');
+    const thinking2Idx = content.findIndex((b, i) => b.type === 'thinking' && i !== thinking1Idx);
+    expect(thinking1Idx).toBeLessThan(textIdx);
+    expect(toolIdx).toBeLessThan(thinking2Idx);
+  });
 });

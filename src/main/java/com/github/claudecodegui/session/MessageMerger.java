@@ -104,6 +104,14 @@ public class MessageMerger {
                         consumedUnkeyedIndexes.add(idx);
                         continue;
                     }
+
+                    // Fallback: merge with last same-type block instead of adding duplicate
+                    int lastSameTypeIdx = findLastSameTypeBlockIndex(baseContent, block);
+                    if (lastSameTypeIdx >= 0) {
+                        baseContent.set(lastSameTypeIdx,
+                                mergeUnkeyedBlock(baseContent.get(lastSameTypeIdx).getAsJsonObject(), block));
+                        continue;
+                    }
                 }
             }
 
@@ -225,6 +233,31 @@ public class MessageMerger {
         }
 
         return existingBlock.equals(incomingBlock);
+    }
+
+    private int findLastSameTypeBlockIndex(JsonArray baseContent, JsonObject incomingBlock) {
+        String incomingType = getContentBlockType(incomingBlock);
+        if (incomingType == null) {
+            return -1;
+        }
+        // Only consider the tail of baseContent — do not cross keyed blocks
+        // (tool_use, tool_result) to avoid merging content from different segments.
+        // E.g., [text_1, tool_use, text_2] should NOT merge text_2 into text_1.
+        for (int i = baseContent.size() - 1; i >= 0; i--) {
+            JsonElement element = baseContent.get(i);
+            if (!element.isJsonObject()) {
+                continue;
+            }
+            JsonObject existingBlock = element.getAsJsonObject();
+            // Stop scanning if we hit a keyed block (tool_use, tool_result)
+            if (getContentBlockKey(existingBlock) != null) {
+                break;
+            }
+            if (incomingType.equals(getContentBlockType(existingBlock))) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private String getContentBlockType(JsonObject block) {

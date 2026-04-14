@@ -99,6 +99,9 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
 
   window.onStreamStart = () => {
     if (window.__sessionTransitioning) return;
+    // Clear the previous stream-ended marker when a new turn starts
+    window.__lastStreamEndedTurnId = undefined;
+    window.__lastStreamEndedAt = undefined;
     // Record turn start time for duration calculation in onStreamEnd
     window.__turnStartedAt = Date.now();
     streamingContentRef.current = '';
@@ -282,45 +285,72 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
     const turnStartedAt = window.__turnStartedAt;
     window.__turnStartedAt = undefined;
 
-    // Flush final content AND clear streaming refs inside the same updater.
-    // This ensures any previously queued setMessages updater (e.g. from
-    // updateMessages) still reads valid refs when it executes, because React
-    // processes updaters in enqueue order.
+    // Snapshot streaming state BEFORE clearing refs - used for post-stream merge guard
+    const endedStreamingTurnId = streamingTurnIdRef.current;
+    const endedStreamingMessageIndex = streamingMessageIndexRef.current;
+    const endedStreamingContent = streamingContentRef.current;
+
+    // FIX: Clear streaming refs BEFORE setMessages updater to prevent race conditions.
+    //
+    // Trade-off analysis:
+    // - Original approach: refs cleared inside updater, leverages React batching to ensure
+    //   clearing and state update happen together. But this caused timing issues when
+    //   deferred operations (rAF, timeout) executed after the updater but before refs were
+    //   actually cleared, allowing them to modify the streaming message incorrectly.
+    // - New approach: refs cleared outside updater, uses snapshot values inside updater.
+    //   This prevents race conditions where deferred updateMessages sees isStreamingRef=false
+    //   but streamingMessageIndexRef still points to the old message.
+    // - Benefit: More robust handling of async callback ordering, especially important
+    //   when JCEF async chains can reorder callbacks unpredictably.
+    // - Risk: Minimal, since snapshot values are used inside updater and refs are cleared
+    //   synchronously before the updater is scheduled.
+    //
+    // Streaming state refs (isStreaming flag)
+    isStreamingRef.current = false;
+    useBackendStreamingRenderRef.current = false;
+
+    // Index refs (message position tracking)
+    streamingMessageIndexRef.current = -1;
+    streamingTurnIdRef.current = -1;
+
+    // Content buffer refs (text/thinking segments)
+    streamingContentRef.current = '';
+    streamingTextSegmentsRef.current = [];
+    streamingThinkingSegmentsRef.current = [];
+    activeTextSegmentIndexRef.current = -1;
+    activeThinkingSegmentIndexRef.current = -1;
+
+    // Counter and tracking refs
+    seenToolUseCountRef.current = 0;
+    autoExpandedThinkingKeysRef.current.clear();
+
+    // Mark that streaming just ended - used by mergeConsecutiveAssistantMessages to
+    // distinguish recently-ended streaming messages from true history messages.
+    window.__lastStreamEndedTurnId = endedStreamingTurnId;
+    window.__lastStreamEndedAt = Date.now();
+
+    // Flush final content and finalize the streaming message.
     setMessages((prev) => {
       let newMessages = prev;
-      const idx = streamingMessageIndexRef.current;
+      const idx = endedStreamingMessageIndex;
       if (prev.length > 0 && idx >= 0 && idx < prev.length && prev[idx]?.type === 'assistant') {
-        const finalContent = streamingContentRef.current;
         newMessages = [...prev];
-        // FIX: Clear __turnId from the streaming message. After streaming ends,
-        // the backend's updateMessages snapshots contain the correct message
-        // structure.  Stale __turnId can interfere with mergeConsecutiveAssistantMessages
-        // when subsequent backend snapshots carry different message splits.
-        const { __turnId: _removedTurnId, ...restWithoutTurnId } = newMessages[idx];
+        // FIX: Keep __turnId on the message for a short period to prevent
+        // incorrect merging with history messages. The __turnId will be
+        // removed later when history is loaded or a new turn starts.
+        const finalContent = endedStreamingContent || newMessages[idx].content || '';
         // Calculate durationMs and stamp it on the assistant message
         const durationMs = (typeof turnStartedAt === 'number' && turnStartedAt > 0)
           ? Date.now() - turnStartedAt
           : undefined;
         newMessages[idx] = {
-          ...restWithoutTurnId,
-          content: finalContent || newMessages[idx].content,
+          ...newMessages[idx],
+          content: finalContent,
           isStreaming: false,
+          __turnId: endedStreamingTurnId, // Keep __turnId for merge guard
           ...(durationMs != null ? { durationMs } : {}),
         };
       }
-
-      // Clear all streaming refs AFTER flushing content, inside the updater
-      isStreamingRef.current = false;
-      useBackendStreamingRenderRef.current = false;
-      streamingMessageIndexRef.current = -1;
-      streamingTurnIdRef.current = -1;
-      streamingContentRef.current = '';
-      streamingTextSegmentsRef.current = [];
-      activeTextSegmentIndexRef.current = -1;
-      streamingThinkingSegmentsRef.current = [];
-      activeThinkingSegmentIndexRef.current = -1;
-      seenToolUseCountRef.current = 0;
-      autoExpandedThinkingKeysRef.current.clear();
 
       return newMessages;
     });

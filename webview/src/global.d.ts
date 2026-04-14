@@ -565,6 +565,22 @@ interface Window {
   __lastStreamActivityAt?: number;
 
   /**
+   * The __turnId of the most recently ended streaming turn.
+   * Used by mergeConsecutiveAssistantMessages to distinguish recently-ended
+   * streaming messages from true history messages and prevent incorrect merging.
+   * Cleared after 5 seconds or when a new turn starts.
+   * @default undefined (no recently ended turn)
+   */
+  __lastStreamEndedTurnId?: number;
+
+  /**
+   * Timestamp when the last streaming turn ended (via onStreamEnd).
+   * Used with __lastStreamEndedTurnId to implement a time-based cleanup.
+   * @default undefined (no stream end recorded)
+   */
+  __lastStreamEndedAt?: number;
+
+  /**
    * Timestamp when the current streaming turn started.
    * Used to calculate durationMs on the assistant message when the stream ends.
    */

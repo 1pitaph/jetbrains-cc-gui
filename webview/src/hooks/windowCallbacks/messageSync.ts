@@ -141,8 +141,8 @@ export const preserveLastAssistantIdentity = (
   const prevAssistant = prevList[prevAssistantIdx];
   const nextAssistant = nextList[nextAssistantIdx];
   // Guard: do not merge identity across different streaming turns
-  // Only block when BOTH have __turnId and they differ; allow merge when either lacks __turnId (backward compat)
-  if (prevAssistant.__turnId !== undefined && nextAssistant.__turnId !== undefined &&
+  // Block when either side has __turnId and they differ
+  if ((prevAssistant.__turnId !== undefined || nextAssistant.__turnId !== undefined) &&
       prevAssistant.__turnId !== nextAssistant.__turnId) {
     return nextList;
   }
@@ -179,8 +179,8 @@ export const preserveStreamingAssistantContent = (
   }
 
   // Guard: do not merge content across different streaming turns
-  // Only block when BOTH have __turnId and they differ
-  if (prevAssistant.__turnId !== undefined && nextAssistant.__turnId !== undefined &&
+  // Block when either side has __turnId and they differ
+  if ((prevAssistant.__turnId !== undefined || nextAssistant.__turnId !== undefined) &&
       prevAssistant.__turnId !== nextAssistant.__turnId) {
     return nextList;
   }
@@ -294,25 +294,31 @@ export const stripDuplicateTrailingToolMessages = (
 };
 
 /**
- * When Codex compacts or summarizes a long conversation, backend snapshots can
- * briefly shrink and omit the newest in-memory turn. Preserve that trailing
- * turn locally until the backend catches up, instead of wiping it from the UI.
+ * When backend snapshots briefly shrink (e.g., Codex compaction or Claude
+ * conversation summarization), preserve the newest in-memory turn locally
+ * until the backend catches up, instead of wiping it from the UI.
+ * FIX: Apply to all providers, not just Codex, to prevent message loss
+ * during streaming end race conditions.
  */
 export const preserveLatestMessagesOnShrink = (
   prevList: ClaudeMessage[],
   nextList: ClaudeMessage[],
   provider: string,
 ): ClaudeMessage[] => {
-  if (provider !== 'codex') return nextList;
+  // Always check for shrink regardless of provider
   if (nextList.length >= prevList.length) return nextList;
   if (prevList.length === 0 || nextList.length === 0) return nextList;
 
   const preservedTail = prevList.slice(nextList.length);
   if (preservedTail.length === 0) return nextList;
 
+  // Check if the preserved tail contains streaming/recent assistant messages
   const hasStreamingTail = preservedTail.some((msg) => msg.type === 'assistant' && (msg.isStreaming || !!msg.__turnId));
   const hasRecentUserTail = preservedTail.some((msg) => msg.type === 'user');
-  if (!hasStreamingTail && !hasRecentUserTail) {
+
+  // Codex: always preserve shrink tail (handles compaction/summarization)
+  // Other providers: only preserve if tail contains streaming/recent messages
+  if (provider !== 'codex' && !hasStreamingTail && !hasRecentUserTail) {
     return nextList;
   }
 

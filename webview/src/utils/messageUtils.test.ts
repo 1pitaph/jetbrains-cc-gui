@@ -126,6 +126,55 @@ describe('mergeConsecutiveAssistantMessages', () => {
     expect(result.map((message) => message.__turnId)).toEqual([10, 11]);
   });
 
+  it('does not merge streaming message (has __turnId) with history message (no __turnId)', () => {
+    const messages: ClaudeMessage[] = [
+      makeMsg('assistant', 'streaming turn', {
+        __turnId: 5,
+        raw: { content: [{ type: 'text', text: 'streaming turn' }] } as any,
+      }),
+      makeMsg('assistant', 'history message', {
+        raw: { content: [{ type: 'text', text: 'history message' }] } as any,
+      }),
+    ];
+
+    const result = mergeConsecutiveAssistantMessages(messages, normalizeBlocks);
+    expect(result).toHaveLength(2);
+    expect(result[0].__turnId).toBe(5);
+    expect(result[1].__turnId).toBeUndefined();
+  });
+
+  it('does not merge history message (no __turnId) with streaming message (has __turnId)', () => {
+    const messages: ClaudeMessage[] = [
+      makeMsg('assistant', 'history message', {
+        raw: { content: [{ type: 'text', text: 'history message' }] } as any,
+      }),
+      makeMsg('assistant', 'streaming turn', {
+        __turnId: 5,
+        raw: { content: [{ type: 'text', text: 'streaming turn' }] } as any,
+      }),
+    ];
+
+    const result = mergeConsecutiveAssistantMessages(messages, normalizeBlocks);
+    expect(result).toHaveLength(2);
+    expect(result[0].__turnId).toBeUndefined();
+    expect(result[1].__turnId).toBe(5);
+  });
+
+  it('merges history messages without __turnId together', () => {
+    const messages: ClaudeMessage[] = [
+      makeMsg('assistant', 'part1', {
+        raw: { content: [{ type: 'text', text: 'part1' }] } as any,
+      }),
+      makeMsg('assistant', 'part2', {
+        raw: { content: [{ type: 'text', text: 'part2' }] } as any,
+      }),
+    ];
+
+    const result = mergeConsecutiveAssistantMessages(messages, normalizeBlocks);
+    expect(result).toHaveLength(1);
+    expect(result[0].content).toBe('part1\npart2');
+  });
+
   it('merges tool-only assistant messages across user tool_result boundaries', () => {
     const messages: ClaudeMessage[] = [
       makeMsg('assistant', '', {
@@ -144,5 +193,50 @@ describe('mergeConsecutiveAssistantMessages', () => {
     expect(result).toHaveLength(1);
     const mergedRaw = result[0].raw as { content?: Array<{ type?: string; id?: string }> };
     expect(mergedRaw.content?.filter((block) => block.type === 'tool_use').map((block) => block.id)).toEqual(['tool-1', 'tool-2']);
+  });
+
+  // ---------------------------------------------------------------------------
+  // hasToolUse + __turnId absence — tool_use merging behavior
+  // ---------------------------------------------------------------------------
+
+  it('merges tool_use with final answer for history messages (no __turnId)', () => {
+    const messages: ClaudeMessage[] = [
+      makeMsg('assistant', '', {
+        raw: { content: [{ type: 'tool_use', id: 'tool-1', name: 'read_file' }] } as any,
+      }),
+      makeMsg('user', '[tool_result]', {
+        raw: { content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'file content' }] } as any,
+      }),
+      makeMsg('assistant', 'final answer', {
+        raw: { content: [{ type: 'text', text: 'final answer' }] } as any,
+      }),
+    ];
+
+    const result = mergeConsecutiveAssistantMessages(messages, normalizeBlocks);
+    expect(result).toHaveLength(1);
+    const mergedRaw = result[0].raw as { content?: Array<{ type?: string }> };
+    expect(mergedRaw.content?.some((b) => b.type === 'tool_use')).toBe(true);
+    expect(mergedRaw.content?.some((b) => b.type === 'text')).toBe(true);
+  });
+
+  it('keeps tool_use separated from final answer for streaming messages (has __turnId)', () => {
+    const messages: ClaudeMessage[] = [
+      makeMsg('assistant', '', {
+        __turnId: 1,
+        raw: { content: [{ type: 'tool_use', id: 'tool-1', name: 'read_file' }] } as any,
+      }),
+      makeMsg('user', '[tool_result]', {
+        raw: { content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'file content' }] } as any,
+      }),
+      makeMsg('assistant', 'final answer', {
+        __turnId: 1,
+        raw: { content: [{ type: 'text', text: 'final answer' }] } as any,
+      }),
+    ];
+
+    const result = mergeConsecutiveAssistantMessages(messages, normalizeBlocks);
+    // Should have 2 assistant messages: tool_use block and final answer block
+    // (user tool_result is skipped, but assistant blocks stay separated)
+    expect(result.filter((m) => m.type === 'assistant')).toHaveLength(2);
   });
 });

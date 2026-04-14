@@ -121,6 +121,53 @@ describe('useWindowCallbacks integration', () => {
     expect((window as any).__sessionTransitionToken).toBeNull();
   });
 
+  // ===== historyLoadComplete triggers full message re-render =====
+
+  it('historyLoadComplete creates new object references for all messages', () => {
+    const opts = createOptions();
+    renderHook(() => useWindowCallbacks(opts));
+
+    const originalMessages: ClaudeMessage[] = [
+      { type: 'user', content: 'question', timestamp: '2024-01-01T00:00:00Z' },
+      { type: 'assistant', content: 'answer', timestamp: '2024-01-01T00:01:00Z' },
+    ];
+
+    act(() => {
+      (window as any).historyLoadComplete();
+    });
+
+    expect(opts.setMessages).toHaveBeenCalledTimes(1);
+    const updater = (opts.setMessages as any).mock.calls[0][0] as (prev: ClaudeMessage[]) => ClaudeMessage[];
+    const result = updater(originalMessages);
+
+    // Verify full shallow copy: array is new, each message object is new
+    expect(result).not.toBe(originalMessages);
+    expect(result.length).toBe(originalMessages.length);
+    for (let i = 0; i < result.length; i++) {
+      expect(result[i]).not.toBe(originalMessages[i]);
+      expect(result[i].content).toBe(originalMessages[i].content);
+      expect(result[i].type).toBe(originalMessages[i].type);
+    }
+  });
+
+  it('historyLoadComplete returns unchanged array when messages are empty', () => {
+    const opts = createOptions();
+    renderHook(() => useWindowCallbacks(opts));
+
+    act(() => {
+      (window as any).historyLoadComplete();
+    });
+
+    expect(opts.setMessages).toHaveBeenCalledTimes(1);
+    const updater = (opts.setMessages as any).mock.calls[0][0] as (prev: ClaudeMessage[]) => ClaudeMessage[];
+    const emptyArray: ClaudeMessage[] = [];
+    const result = updater(emptyArray);
+
+    // Returns the same empty array reference (no unnecessary copy)
+    expect(result).toBe(emptyArray);
+    expect(result.length).toBe(0);
+  });
+
   // ===== setSessionId releases transition guard =====
 
   it('setSessionId releases __sessionTransitioning guard', () => {

@@ -423,6 +423,31 @@ describe('preserveStreamingAssistantContent', () => {
     );
     expect(result[0].content).toBe(longContent);
   });
+
+  it('blocks merge when only prev has turn ID (streaming vs history)', () => {
+    const longContent = 'long streaming content';
+    const prev = [makeAssistantMsg(longContent, { __turnId: 1 })];
+    const next = [makeAssistantMsg('history snapshot')];
+
+    const result = preserveStreamingAssistantContent(
+      prev, next, ref(true), ref(longContent),
+      findLastAssistantIndex, patchAssistantForStreaming,
+    );
+    expect(result).toBe(next);
+    expect(result[0].content).toBe('history snapshot');
+  });
+
+  it('blocks merge when only next has turn ID (history vs streaming)', () => {
+    const prev = [makeAssistantMsg('old history content')];
+    const next = [makeAssistantMsg('new streaming', { __turnId: 2 })];
+
+    const result = preserveStreamingAssistantContent(
+      prev, next, ref(true), ref('buffer'),
+      findLastAssistantIndex, patchAssistantForStreaming,
+    );
+    expect(result).toBe(next);
+    expect(result[0].content).toBe('new streaming');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -458,13 +483,24 @@ describe('preserveLastAssistantIdentity — turn ID guards', () => {
     expect(result[0].timestamp).toBe(prevTs);
   });
 
-  it('allows merge when only one has turn ID (Java message without turnId)', () => {
+  it('blocks merge when only prev has turn ID (streaming vs history)', () => {
     const prevTs = '2024-01-01T10:00:00.000Z';
-    const prev = [makeAssistantMsg('a1', { timestamp: prevTs, __turnId: 1 })];
-    const next = [makeAssistantMsg('a1', { timestamp: '2024-01-01T10:00:01.000Z' })];
+    const prev = [makeAssistantMsg('streaming', { timestamp: prevTs, __turnId: 1 })];
+    const next = [makeAssistantMsg('history snapshot', { timestamp: '2024-01-01T10:00:01.000Z' })];
 
     const result = preserveLastAssistantIdentity(prev, next, findLastAssistantIndex);
-    expect(result[0].timestamp).toBe(prevTs);
+    expect(result).toBe(next);
+    expect(result[0].timestamp).not.toBe(prevTs);
+  });
+
+  it('blocks merge when only next has turn ID (history vs streaming)', () => {
+    const prevTs = '2024-01-01T10:00:00.000Z';
+    const prev = [makeAssistantMsg('history', { timestamp: prevTs })];
+    const next = [makeAssistantMsg('streaming', { timestamp: '2024-01-01T10:00:01.000Z', __turnId: 2 })];
+
+    const result = preserveLastAssistantIdentity(prev, next, findLastAssistantIndex);
+    expect(result).toBe(next);
+    expect(result[0].timestamp).not.toBe(prevTs);
   });
 });
 

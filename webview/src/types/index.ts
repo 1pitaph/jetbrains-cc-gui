@@ -34,7 +34,12 @@ export interface ClaudeMessage {
   timestamp?: string;
   isStreaming?: boolean;
   isOptimistic?: boolean;
-  /** Runtime-only: numeric turn identifier for streaming assistant isolation. */
+  /**
+   * Runtime-only: numeric turn identifier for streaming assistant isolation.
+   * Set by frontend during streaming to distinguish messages from different
+   * conversation turns. Messages with different __turnId values should never
+   * be merged. Undefined for history messages loaded from JSONL files.
+   */
   __turnId?: number;
   [key: string]: unknown;
 }

@@ -373,9 +373,38 @@ export function getContentBlocks(
   return [];
 }
 
+// ---------------------------------------------------------------------------
+// Helper functions for mergeConsecutiveAssistantMessages
+// These functions handle the stream-ended marker cleanup and checking.
+// ---------------------------------------------------------------------------
+
+/**
+ * Clear stale stream-ended markers from window global state.
+ * Called once at the entry of mergeConsecutiveAssistantMessages to avoid
+ * modifying global state inside a pure judgment function.
+ * The marker expires after 5 seconds to allow normal history merging.
+ */
+const clearStaleStreamEndedMarker = (): void => {
+  const lastEndedTime = (window as any).__lastStreamEndedAt;
+  if (lastEndedTime && Date.now() - lastEndedTime > 5000) {
+    (window as any).__lastStreamEndedTurnId = undefined;
+    (window as any).__lastStreamEndedAt = undefined;
+  }
+};
+
+/**
+ * Check if a message has the recently-ended streaming turn ID.
+ * Used to block merging of recently-ended streaming messages with history messages.
+ * Returns true if the message's turnId matches the last ended streaming turn.
+ */
+const hasRecentlyEndedTurnId = (turnId: number | undefined): boolean => {
+  const lastEndedTurnId = (window as any).__lastStreamEndedTurnId;
+  return lastEndedTurnId !== undefined && lastEndedTurnId > 0 && turnId === lastEndedTurnId;
+};
+
 /**
  * Merge consecutive assistant messages to fix style inconsistencies in history
- * where Thinking and ToolUse are separated
+ * where Thinking and ToolUse are separated.
  */
 export function mergeConsecutiveAssistantMessages(
   messages: ClaudeMessage[],
@@ -383,6 +412,9 @@ export function mergeConsecutiveAssistantMessages(
   cache?: Map<string, { source: ClaudeMessage[]; merged: ClaudeMessage }>
 ): ClaudeMessage[] {
   if (messages.length === 0) return [];
+
+  // Clear stale stream-ended markers once at entry (5 second timeout)
+  clearStaleStreamEndedMarker();
 
   const getStableId = (message: ClaudeMessage, index: number): string => {
     const rawObj = typeof message.raw === 'object' ? (message.raw as Record<string, unknown> | null) : null;
@@ -404,19 +436,32 @@ export function mergeConsecutiveAssistantMessages(
   const shouldMergeAssistantMessage = (previous: ClaudeMessage, next: ClaudeMessage): boolean => {
     // Distinct streaming turns must stay visually separated even when the
     // backend emits adjacent assistant fragments during synchronization.
-    if (
-      previous.__turnId !== undefined &&
-      next.__turnId !== undefined &&
-      previous.__turnId !== next.__turnId
-    ) {
+    // Block merge when either side has a __turnId and they differ.
+    // This prevents streaming messages from merging with history messages.
+    // FIX: Also check __lastStreamEndedTurnId to distinguish recently-ended
+    // streaming messages from true history messages.
+    const prevTurnId = previous.__turnId;
+    const nextTurnId = next.__turnId;
+
+    // If either message has the recently-ended turn ID, block merging
+    if (hasRecentlyEndedTurnId(prevTurnId) || hasRecentlyEndedTurnId(nextTurnId)) {
+      return false;
+    }
+
+    // Block merge when either side has a __turnId and they differ
+    if ((prevTurnId !== undefined || nextTurnId !== undefined) &&
+        prevTurnId !== nextTurnId) {
       return false;
     }
 
     const previousSummary = getAssistantBlockSummary(previous);
     const nextSummary = getAssistantBlockSummary(next);
 
-    // Keep tool-execution assistant messages separated from the final answer.
-    if (previousSummary.hasToolUse !== nextSummary.hasToolUse) {
+    // For messages without __turnId (loaded from history), allow merging across
+    // tool_use boundary so that tool-execution and final answer appear as one block.
+    // For streaming messages (with __turnId), keep tool_use separated from answer.
+    const bothLackTurnId = prevTurnId === undefined && nextTurnId === undefined;
+    if (!bothLackTurnId && previousSummary.hasToolUse !== nextSummary.hasToolUse) {
       return false;
     }
 

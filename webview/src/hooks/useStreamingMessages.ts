@@ -112,12 +112,20 @@ export function useStreamingMessages(): UseStreamingMessagesReturn {
       .replace(/\n+$/, '');
   };
 
+  const isDoubledContent = (candidate: string, base: string): boolean => {
+    if (!base || !candidate || base.length >= candidate.length) return false;
+    // Check if candidate is base repeated 2+ times (e.g., "ABCABC" from "ABC")
+    const repeated = base + base;
+    return candidate.startsWith(repeated);
+  };
+
   const preferMoreCompleteText = (segmentText: unknown, existingText: unknown): string => {
     const streamed = typeof segmentText === 'string' ? segmentText : '';
     const existing = typeof existingText === 'string' ? existingText : '';
 
     if (!streamed) return existing;
     if (!existing) return streamed;
+    if (isDoubledContent(existing, streamed)) return streamed;
     return existing.length > streamed.length ? existing : streamed;
   };
 
@@ -127,6 +135,7 @@ export function useStreamingMessages(): UseStreamingMessagesReturn {
 
     if (!streamed) return existing;
     if (!existing) return streamed;
+    if (isDoubledContent(existing, streamed)) return streamed;
     return existing.length > streamed.length ? existing : streamed;
   };
 
@@ -231,7 +240,10 @@ export function useStreamingMessages(): UseStreamingMessagesReturn {
     output.push({ type: 'text', text: novel });
   };
 
-  // Helper: Build streaming blocks from segments
+  // Helper: Build streaming blocks from segments.
+  // Thinking blocks use index-based matching to preserve positions (multi-phase thinking).
+  // After building, adjacent thinking blocks with overlapping content are merged
+  // to prevent duplication while preserving distinct thinking phases.
   const buildStreamingBlocks = (existingBlocks: ContentBlock[]): ContentBlock[] => {
     const textSegments = streamingTextSegmentsRef.current;
     const thinkingSegments = streamingThinkingSegmentsRef.current;
@@ -240,23 +252,25 @@ export function useStreamingMessages(): UseStreamingMessagesReturn {
     let thinkingIdx = 0;
     let textIdx = 0;
 
+    // Process existing blocks in order, matching segments by position
     for (const block of existingBlocks) {
-      if (!block || typeof block !== 'object') {
-        continue;
-      }
+      if (!block || typeof block !== 'object') continue;
+
       if (block.type === 'thinking') {
-        const thinking = preferMoreCompleteThinking(
-          thinkingSegments[thinkingIdx],
-          block.thinking ?? block.text,
-        );
+        const segmentContent = thinkingSegments[thinkingIdx];
+        const backendContent = block.thinking ?? block.text ?? '';
+        const thinking = preferMoreCompleteThinking(segmentContent, backendContent);
         thinkingIdx += 1;
         if (thinking.length > 0) {
           appendNovelTextLikeBlock(output, 'thinking', thinking);
         }
         continue;
       }
+
       if (block.type === 'text') {
-        const text = preferMoreCompleteText(textSegments[textIdx], block.text);
+        const segmentContent = textSegments[textIdx];
+        const backendContent = block.text ?? '';
+        const text = preferMoreCompleteText(segmentContent, backendContent);
         textIdx += 1;
         if (text.length > 0) {
           appendNovelTextLikeBlock(output, 'text', text);
@@ -264,9 +278,11 @@ export function useStreamingMessages(): UseStreamingMessagesReturn {
         continue;
       }
 
+      // Non-text/thinking blocks (tool_use, image, etc.) - keep as-is
       output.push(block);
     }
 
+    // Append remaining segments that weren't matched to existing blocks
     const phasesCount = Math.max(textSegments.length, thinkingSegments.length);
     const appendFromPhase = Math.max(textIdx, thinkingIdx);
     for (let phase = appendFromPhase; phase < phasesCount; phase += 1) {
@@ -280,7 +296,74 @@ export function useStreamingMessages(): UseStreamingMessagesReturn {
       }
     }
 
-    return output;
+    return mergeOverlappingThinkingBlocks(output);
+  };
+
+  /**
+   * Merge thinking blocks with overlapping content to prevent duplication.
+   * Preserves distinct thinking phases that have no content overlap.
+   * Uses mark-and-filter approach to avoid splice index corruption.
+   */
+  const mergeOverlappingThinkingBlocks = (blocks: ContentBlock[]): ContentBlock[] => {
+    const thinkingIndices: number[] = [];
+    for (let i = 0; i < blocks.length; i++) {
+      if (blocks[i]?.type === 'thinking') thinkingIndices.push(i);
+    }
+
+    if (thinkingIndices.length <= 1) return blocks;
+
+    const thinkingContents = thinkingIndices.map((i) =>
+      normalizeThinking(blocks[i]?.thinking ?? blocks[i]?.text ?? ''),
+    );
+
+    // Group thinking blocks that have overlapping content
+    const mergeGroups: number[][] = [];
+    const assigned = new Set<number>();
+
+    for (let i = 0; i < thinkingContents.length; i++) {
+      if (assigned.has(i)) continue;
+      const group = [i];
+      assigned.add(i);
+
+      for (let j = i + 1; j < thinkingContents.length; j++) {
+        if (assigned.has(j)) continue;
+        const a = thinkingContents[i];
+        const b = thinkingContents[j];
+        // Overlap: one contains the other (covers prefix/suffix cases too)
+        if (a.includes(b) || b.includes(a)) {
+          group.push(j);
+          assigned.add(j);
+        }
+      }
+      mergeGroups.push(group);
+    }
+
+    // Mark indices to remove, update first block with merged content
+    const toRemove = new Set<number>();
+    for (const group of mergeGroups) {
+      if (group.length === 1) continue;
+
+      let merged = '';
+      for (const idx of group) {
+        const content = thinkingContents[idx];
+        if (content.includes(merged)) {
+          merged = content;
+        } else if (!merged.includes(content)) {
+          merged = mergeStreamingTextLikeContent(merged, content);
+        }
+      }
+
+      const firstIdx = thinkingIndices[group[0]];
+      blocks[firstIdx] = { type: 'thinking', thinking: merged, text: merged };
+
+      // Mark other blocks in group for removal
+      for (let k = 1; k < group.length; k++) {
+        toRemove.add(thinkingIndices[group[k]]);
+      }
+    }
+
+    // Filter out marked blocks (single pass, no index corruption)
+    return toRemove.size === 0 ? blocks : blocks.filter((_, idx) => !toRemove.has(idx));
   };
 
   /**
