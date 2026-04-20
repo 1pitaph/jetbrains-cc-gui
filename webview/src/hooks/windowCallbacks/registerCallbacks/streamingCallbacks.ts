@@ -6,6 +6,7 @@
  */
 
 import type { UseWindowCallbacksOptions } from '../../useWindowCallbacks';
+import type { ClaudeRawMessage } from '../../../types';
 import { sendBridgeEvent } from '../../../utils/bridge';
 import { THROTTLE_INTERVAL } from '../../useStreamingMessages';
 import { parseSequence } from '../parseSequence';
@@ -99,6 +100,14 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
 
   window.onStreamStart = () => {
     if (window.__sessionTransitioning) return;
+    // Clear any stale pending updateMessages from previous turn.
+    // This prevents onStreamEnd from using outdated snapshot data.
+    if (typeof window.__cancelPendingUpdateMessages === 'function') {
+      window.__cancelPendingUpdateMessages();
+    }
+    // Explicit null in case the rAF already executed (clearing pendingUpdateRaf)
+    // but __pendingUpdateJson was not yet cleared by the rAF callback.
+    window.__pendingUpdateJson = null;
     // Clear the previous stream-ended marker when a new turn starts
     window.__lastStreamEndedTurnId = undefined;
     window.__lastStreamEndedAt = undefined;
@@ -260,10 +269,32 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
     // Notify backend about stream completion for tab status indicator
     sendBridgeEvent('tab_status_changed', JSON.stringify({ status: 'completed' }));
 
-    // FIX: Cancel any pending coalesced updateMessages rAF.  If onStreamEnd
-    // fires between the rAF scheduling and execution, the stale snapshot
-    // would be processed in the non-streaming path after refs are cleared,
-    // overwriting the final state with an outdated message structure.
+    // FIX: Extract backend final snapshot from pending updateMessages BEFORE cancelling rAF.
+    // The backend's final flush contains the authoritative message state (complete raw blocks).
+    // If onStreamEnd cancels the rAF without processing this snapshot, the final message may
+    // show incomplete content (e.g., last delta missing) or duplicated content in raw blocks.
+    let backendSnapshotContent: string | undefined;
+    let backendSnapshotRaw: ClaudeRawMessage | string | undefined = undefined;
+    if (typeof window.__pendingUpdateJson === 'string' && window.__pendingUpdateJson.length > 0) {
+      try {
+        const parsed = JSON.parse(window.__pendingUpdateJson) as Array<Record<string, unknown>>;
+        for (let i = parsed.length - 1; i >= 0; i--) {
+          if (parsed[i]?.type === 'assistant') {
+            const rawContent = parsed[i].content;
+            const content = typeof rawContent === 'string' ? rawContent : '';
+            if (content) {
+              backendSnapshotContent = content;
+              const rawVal = parsed[i].raw;
+              if (rawVal != null && (typeof rawVal === 'object' || typeof rawVal === 'string')) {
+                backendSnapshotRaw = rawVal as ClaudeRawMessage | string;
+              }
+            }
+            break;
+          }
+        }
+      } catch { /* ignore parse errors */ }
+    }
+
     if (typeof window.__cancelPendingUpdateMessages === 'function') {
       window.__cancelPendingUpdateMessages();
     }
@@ -288,7 +319,28 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
     // Snapshot streaming state BEFORE clearing refs - used for post-stream merge guard
     const endedStreamingTurnId = streamingTurnIdRef.current;
     const endedStreamingMessageIndex = streamingMessageIndexRef.current;
-    const endedStreamingContent = streamingContentRef.current;
+    // Use the more complete content between streaming ref and backend snapshot
+    const endedStreamingContent = (backendSnapshotContent && backendSnapshotContent.length > streamingContentRef.current.length)
+      ? backendSnapshotContent
+      : streamingContentRef.current;
+    const endedBackendRaw = backendSnapshotRaw;
+
+    // Helper to measure total text length from raw blocks (for comparing completeness).
+    // Handles both object and JSON string formats of raw.
+    const getTextLenFromRaw = (raw: unknown): number => {
+      try {
+        let parsedRaw: unknown = raw;
+        if (typeof raw === 'string') {
+          parsedRaw = JSON.parse(raw);
+        }
+        const msg = (parsedRaw as Record<string, unknown>)?.message as Record<string, unknown> | undefined;
+        const content = msg?.content as Array<Record<string, unknown>> | undefined;
+        if (!Array.isArray(content)) return 0;
+        return content
+          .filter((b) => b?.type === 'text' && typeof b.text === 'string')
+          .reduce((sum, b) => sum + (b.text as string).length, 0);
+      } catch { return 0; }
+    };
 
     // FIX: Clear streaming refs BEFORE setMessages updater to prevent race conditions.
     //
@@ -343,9 +395,19 @@ export function registerStreamingCallbacks(options: UseWindowCallbacksOptions): 
         const durationMs = (typeof turnStartedAt === 'number' && turnStartedAt > 0)
           ? Date.now() - turnStartedAt
           : undefined;
+        // Use backend raw blocks only if they are more complete than the existing raw.
+        // The backend snapshot may be from an earlier coalescer flush, so the existing
+        // raw (updated by subsequent deltas) could actually be more up-to-date.
+        let finalRaw = newMessages[idx].raw;
+        if (endedBackendRaw != null) {
+          if (getTextLenFromRaw(endedBackendRaw) >= getTextLenFromRaw(finalRaw)) {
+            finalRaw = endedBackendRaw;
+          }
+        }
         newMessages[idx] = {
           ...newMessages[idx],
           content: finalContent,
+          raw: finalRaw,
           isStreaming: false,
           __turnId: endedStreamingTurnId, // Keep __turnId for merge guard
           ...(durationMs != null ? { durationMs } : {}),

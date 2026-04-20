@@ -195,6 +195,19 @@ export function useStreamingMessages(): UseStreamingMessagesReturn {
         if (!remaining) {
           return '';
         }
+      } else {
+        const MIN_OVERLAP = 10;
+        const MAX_OVERLAP = 200;
+        const maxLen = Math.min(existing.length, remaining.length, MAX_OVERLAP);
+        for (let n = maxLen; n >= MIN_OVERLAP; n -= 1) {
+          if (existing.slice(-n) === remaining.slice(0, n)) {
+            remaining = remaining.slice(n);
+            break;
+          }
+        }
+        if (!remaining) {
+          return '';
+        }
       }
     }
 
