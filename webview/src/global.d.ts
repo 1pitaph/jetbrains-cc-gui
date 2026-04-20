@@ -593,9 +593,19 @@ interface Window {
    * Used with __lastStreamEndedTurnId to implement a time-based cleanup.
    * @default undefined (no stream end recorded)
    */
-  __lastStreamEndedAt?: number;
+   __lastStreamEndedAt?: number;
 
-  /**
+   /**
+    * Turn ID for which onStreamEnd has already been processed.
+    * Used as an idempotency guard: when dual-path delivery sends onStreamEnd
+    * twice (primary via flush callback + fallback via Alarm), only the first
+    * arrival takes effect; the second is a no-op.
+    * Cleared in onStreamStart to allow the next turn.
+    * @default undefined (no processed turn)
+    */
+   __streamEndProcessedTurnId?: number;
+
+   /**
    * Timestamp when the current streaming turn started.
    * Used to calculate durationMs on the assistant message when the stream ends.
    */
