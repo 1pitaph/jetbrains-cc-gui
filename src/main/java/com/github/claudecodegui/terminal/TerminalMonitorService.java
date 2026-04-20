@@ -650,10 +650,13 @@ public class TerminalMonitorService implements ProjectActivity {
     }
 
     private static void logTerminalActionRegistration() {
+        if (!LOG.isDebugEnabled()) {
+            return;
+        }
         try {
             ActionManager actionManager = ActionManager.getInstance();
             AnAction action = actionManager.getAction(SendTerminalSelectionToInputAction.ACTION_ID);
-            LOG.info("[TerminalSend] action registered=" + (action != null)
+            LOG.debug("[TerminalSend] action registered=" + (action != null)
                     + ", class=" + (action == null ? "null" : action.getClass().getName()));
             logGroupMembership(actionManager, SendTerminalSelectionToInputAction.TERMINAL_OUTPUT_CONTEXT_MENU);
             logGroupMembership(actionManager, SendTerminalSelectionToInputAction.TERMINAL_PROMPT_CONTEXT_MENU);
@@ -666,7 +669,7 @@ public class TerminalMonitorService implements ProjectActivity {
     private static void logGroupMembership(@NotNull ActionManager actionManager, @NotNull String groupId) {
         AnAction groupAction = actionManager.getAction(groupId);
         if (!(groupAction instanceof ActionGroup)) {
-            LOG.info("[TerminalSend] group missing or not ActionGroup: " + groupId);
+            LOG.debug("[TerminalSend] group missing or not ActionGroup: " + groupId);
             return;
         }
 
@@ -674,7 +677,7 @@ public class TerminalMonitorService implements ProjectActivity {
         List<String> childIds = Arrays.stream(group.getChildren(null))
                 .map(child -> actionManager.getId(child))
                 .collect(Collectors.toList());
-        LOG.info("[TerminalSend] group=" + groupId
+        LOG.debug("[TerminalSend] group=" + groupId
                 + ", containsSendAction=" + childIds.contains(SendTerminalSelectionToInputAction.ACTION_ID)
                 + ", childCount=" + childIds.size()
                 + ", sampleChildren=" + childIds.stream().limit(12).collect(Collectors.toList()));

@@ -2,6 +2,7 @@ package com.github.claudecodegui.terminal;
 
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnAction;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.terminal.JBTerminalWidget;
 import com.intellij.terminal.actions.TerminalActionUtil;
 import com.jediterm.terminal.ui.TerminalAction;
@@ -14,11 +15,14 @@ import java.util.List;
 
 final class LegacyTerminalSendActionProvider implements TerminalActionProvider {
 
+    private static final Logger LOG = Logger.getInstance(LegacyTerminalSendActionProvider.class);
+
     private final List<TerminalAction> actions;
     private TerminalActionProvider nextProvider;
 
     LegacyTerminalSendActionProvider(@NotNull JBTerminalWidget widget, @Nullable TerminalActionProvider nextProvider) {
-        this.actions = Collections.singletonList(createAction(widget));
+        TerminalAction terminalAction = createAction(widget);
+        this.actions = terminalAction != null ? Collections.singletonList(terminalAction) : Collections.emptyList();
         this.nextProvider = nextProvider;
     }
 
@@ -37,10 +41,11 @@ final class LegacyTerminalSendActionProvider implements TerminalActionProvider {
         this.nextProvider = provider;
     }
 
-    private static @NotNull TerminalAction createAction(@NotNull JBTerminalWidget widget) {
+    private static @Nullable TerminalAction createAction(@NotNull JBTerminalWidget widget) {
         AnAction action = ActionManager.getInstance().getAction(SendTerminalSelectionToInputAction.ACTION_ID);
         if (action == null) {
-            throw new IllegalStateException("Terminal send action is not registered: " + SendTerminalSelectionToInputAction.ACTION_ID);
+            LOG.warn("[TerminalSend] Terminal send action is not registered: " + SendTerminalSelectionToInputAction.ACTION_ID);
+            return null;
         }
         return TerminalActionUtil.createTerminalAction(widget, action);
     }

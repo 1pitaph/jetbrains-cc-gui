@@ -124,10 +124,10 @@ export function useGlobalCallbacks({
         adjustHeight();
         onInput?.(newText);
 
-        // Immediately render file tags
-        setTimeout(() => {
+        // Render file tags on next frame
+        requestAnimationFrame(() => {
           renderFileTags();
-        }, 50);
+        });
       } catch (error) {
         console.error('[useGlobalCallbacks] handleFilePathFromJava failed:', error);
       }
@@ -201,12 +201,12 @@ export function useGlobalCallbacks({
         adjustHeight();
         onInput?.(newText);
 
-        // Immediately render file tags
-        setTimeout(() => {
+        // Render file tags on next frame
+        requestAnimationFrame(() => {
           renderFileTags();
           // Re-focus after rendering
           editableRef.current?.focus();
-        }, 50);
+        });
       } catch (error) {
         console.error('[useGlobalCallbacks] insertCodeSnippetAtCursor failed:', error);
       }

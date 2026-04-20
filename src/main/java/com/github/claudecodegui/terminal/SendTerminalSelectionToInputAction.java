@@ -15,8 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.terminal.block.util.TerminalDataContextUtils;
 
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.lang.reflect.Method;
 
 public class SendTerminalSelectionToInputAction extends AnAction implements DumbAware {
 
@@ -24,7 +23,22 @@ public class SendTerminalSelectionToInputAction extends AnAction implements Dumb
     static final String ACTION_ID = "ClaudeCodeGUI.SendTerminalSelectionToInputAction";
     static final String TERMINAL_OUTPUT_CONTEXT_MENU = "Terminal.OutputContextMenu";
     static final String TERMINAL_PROMPT_CONTEXT_MENU = "Terminal.PromptContextMenu";
-    private static final Set<String> loggedUpdateContexts = ConcurrentHashMap.newKeySet();
+    static final String TERMINAL_REWORKED_CONTEXT_MENU = "Terminal.ReworkedTerminalContextMenu";
+    // Coupled to the internal DataKey name used by IntelliJ's reworked terminal (2024.3+).
+    // If JetBrains renames this key, the feature degrades silently (returns null).
+    private static final com.intellij.openapi.actionSystem.DataKey<Object> TERMINAL_VIEW_DATA_KEY =
+            com.intellij.openapi.actionSystem.DataKey.create("TerminalView");
+
+    // Reflective method names for reworked terminal API (not public, may change across IDE versions)
+    private static final String METHOD_GET_TEXT_SELECTION_MODEL = "getTextSelectionModel";
+    private static final String METHOD_GET_SELECTION = "getSelection";
+    private static final String METHOD_GET_START_OFFSET = "getStartOffset";
+    private static final String METHOD_GET_END_OFFSET = "getEndOffset";
+    private static final String METHOD_GET_OUTPUT_MODELS = "getOutputModels";
+    private static final String METHOD_GET_ACTIVE = "getActive";
+    private static final String METHOD_GET_VALUE = "getValue";
+    private static final String METHOD_GET_TEXT = "getText";
+
     private static TerminalSelectionProvider selectionProvider = TerminalSelectionProvider.DEFAULT;
 
     public SendTerminalSelectionToInputAction() {
@@ -42,11 +56,15 @@ public class SendTerminalSelectionToInputAction extends AnAction implements Dumb
 
     @Override
     public void update(@NotNull AnActionEvent e) {
-        boolean popupPlace = isTerminalPopupPlace(e.getPlace());
-        boolean widgetContext = hasTerminalWidgetContext(e);
-        boolean editorContext = isTerminalContext(e);
-        boolean terminalContext = popupPlace || widgetContext || editorContext;
-        logUpdateContext(e, popupPlace, widgetContext, editorContext, terminalContext);
+        // Short-circuit: trust the group registration for terminal popup menus
+        if (isTerminalPopupPlace(e.getPlace())) {
+            e.getPresentation().setEnabledAndVisible(true);
+            return;
+        }
+        // For other contexts (e.g. EditorPopupMenu), check terminal data context safely
+        boolean terminalContext = safeHasTerminalWidgetContext(e)
+                || safeIsTerminalContext(e)
+                || safeHasReworkedTerminalViewContext(e);
         e.getPresentation().setEnabledAndVisible(terminalContext);
     }
 
@@ -57,8 +75,8 @@ public class SendTerminalSelectionToInputAction extends AnAction implements Dumb
         if (LOG.isDebugEnabled()) {
             LOG.debug("[TerminalSend] actionPerformed place=" + e.getPlace()
                     + ", project=" + (project == null ? "null" : project.getName())
-                    + ", hasTerminalWidget=" + hasTerminalWidgetContext(e)
-                    + ", editorContext=" + isTerminalContext(e)
+                    + ", hasTerminalWidget=" + safeHasTerminalWidgetContext(e)
+                    + ", editorContext=" + safeIsTerminalContext(e)
                     + ", textResolved=" + (selectedText != null)
                     + ", textLength=" + (selectedText == null ? 0 : selectedText.length()));
         }
@@ -82,6 +100,9 @@ public class SendTerminalSelectionToInputAction extends AnAction implements Dumb
             rawSelection = e.getData(JBTerminalWidget.SELECTED_TEXT_DATA_KEY);
         }
         if (rawSelection == null) {
+            rawSelection = resolveReworkedTerminalSelection(e);
+        }
+        if (rawSelection == null) {
             Editor editor = resolveEditor(e);
             if (editor != null) {
                 rawSelection = editor.getSelectionModel().getSelectedText();
@@ -91,7 +112,9 @@ public class SendTerminalSelectionToInputAction extends AnAction implements Dumb
     }
 
     static boolean isTerminalPopupPlace(@Nullable String place) {
-        return TERMINAL_OUTPUT_CONTEXT_MENU.equals(place) || TERMINAL_PROMPT_CONTEXT_MENU.equals(place);
+        return TERMINAL_OUTPUT_CONTEXT_MENU.equals(place)
+                || TERMINAL_PROMPT_CONTEXT_MENU.equals(place)
+                || TERMINAL_REWORKED_CONTEXT_MENU.equals(place);
     }
 
     interface TerminalSelectionProvider {
@@ -106,9 +129,7 @@ public class SendTerminalSelectionToInputAction extends AnAction implements Dumb
                     return null;
                 }
                 return editor.getSelectionModel().getSelectedText();
-            } catch (Error e) {
-                throw e;
-            } catch (RuntimeException e) {
+            } catch (Exception | LinkageError e) {
                 LOG.debug("[TerminalSend] TerminalDataContextUtils.getEditor failed in DEFAULT provider", e);
                 return null;
             }
@@ -118,16 +139,35 @@ public class SendTerminalSelectionToInputAction extends AnAction implements Dumb
         String resolveSelection(@Nullable AnActionEvent event);
     }
 
-    private static boolean isTerminalContext(@Nullable AnActionEvent event) {
-        Editor editor = resolveEditor(event);
-        return editor != null && isSupportedEditor(editor);
-    }
-
-    private static boolean hasTerminalWidgetContext(@Nullable AnActionEvent event) {
-        if (event == null) {
+    private static boolean safeIsTerminalContext(@Nullable AnActionEvent event) {
+        try {
+            Editor editor = resolveEditor(event);
+            return editor != null && isSupportedEditor(editor);
+        } catch (Exception | LinkageError e) {
+            LOG.debug("[TerminalSend] Terminal context check failed", e);
             return false;
         }
-        return event.getData(JBTerminalWidget.TERMINAL_DATA_KEY) != null;
+    }
+
+    private static boolean safeHasTerminalWidgetContext(@Nullable AnActionEvent event) {
+        try {
+            if (event == null) {
+                return false;
+            }
+            return event.getData(JBTerminalWidget.TERMINAL_DATA_KEY) != null;
+        } catch (Exception | LinkageError e) {
+            LOG.debug("[TerminalSend] Terminal widget context check failed", e);
+            return false;
+        }
+    }
+
+    private static boolean safeHasReworkedTerminalViewContext(@Nullable AnActionEvent event) {
+        try {
+            return resolveTerminalView(event) != null;
+        } catch (Exception | LinkageError e) {
+            LOG.debug("[TerminalSend] Reworked terminal view context check failed", e);
+            return false;
+        }
     }
 
     private static @Nullable Editor resolveEditor(@Nullable AnActionEvent event) {
@@ -139,17 +179,87 @@ public class SendTerminalSelectionToInputAction extends AnAction implements Dumb
             if (editor != null && isSupportedEditor(editor)) {
                 return editor;
             }
-        } catch (Error e) {
-            throw e;
-        } catch (RuntimeException e) {
+        } catch (Exception | LinkageError e) {
             LOG.debug("[TerminalSend] TerminalDataContextUtils.getEditor failed, falling back", e);
         }
 
-        Editor fallbackEditor = event.getData(CommonDataKeys.EDITOR);
-        if (fallbackEditor != null && isSupportedEditor(fallbackEditor)) {
-            return fallbackEditor;
+        try {
+            Editor fallbackEditor = event.getData(CommonDataKeys.EDITOR);
+            if (fallbackEditor != null && isSupportedEditor(fallbackEditor)) {
+                return fallbackEditor;
+            }
+        } catch (Exception | LinkageError e) {
+            LOG.debug("[TerminalSend] Fallback editor check failed", e);
         }
         return null;
+    }
+
+    private static @Nullable String resolveReworkedTerminalSelection(@Nullable AnActionEvent event) {
+        Object terminalView = resolveTerminalView(event);
+        if (terminalView == null) {
+            return null;
+        }
+        try {
+            Object selectionModel = invokeMethod(terminalView, METHOD_GET_TEXT_SELECTION_MODEL);
+            Object selection = invokeMethod(selectionModel, METHOD_GET_SELECTION);
+            if (selection == null) {
+                return null;
+            }
+
+            Object startOffset = invokeMethod(selection, METHOD_GET_START_OFFSET);
+            Object endOffset = invokeMethod(selection, METHOD_GET_END_OFFSET);
+            if (startOffset == null || endOffset == null) {
+                return null;
+            }
+
+            Object outputModels = invokeMethod(terminalView, METHOD_GET_OUTPUT_MODELS);
+            Object activeFlow = invokeMethod(outputModels, METHOD_GET_ACTIVE);
+            Object outputModel = invokeMethod(activeFlow, METHOD_GET_VALUE);
+            Object selectedText = invokeMethod(outputModel, METHOD_GET_TEXT, startOffset, endOffset);
+            return selectedText == null ? null : selectedText.toString();
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
+            LOG.debug("[TerminalSend] Reworked terminal selection resolution failed", e);
+            return null;
+        }
+    }
+
+    private static @Nullable Object resolveTerminalView(@Nullable AnActionEvent event) {
+        if (event == null) {
+            return null;
+        }
+        return event.getData(TERMINAL_VIEW_DATA_KEY);
+    }
+
+    private static @Nullable Object invokeMethod(@Nullable Object target, @NotNull String methodName, Object... args)
+            throws ReflectiveOperationException {
+        if (target == null) {
+            return null;
+        }
+        Method method = findMethod(target.getClass(), methodName, args.length);
+        return method.invoke(target, args);
+    }
+
+    private static @NotNull Method findMethod(@NotNull Class<?> type, @NotNull String methodName, int parameterCount)
+            throws NoSuchMethodException {
+        for (Method method : type.getMethods()) {
+            if (method.getName().equals(methodName) && method.getParameterCount() == parameterCount) {
+                method.setAccessible(true);
+                return method;
+            }
+        }
+
+        Class<?> current = type;
+        while (current != null) {
+            for (Method method : current.getDeclaredMethods()) {
+                if (method.getName().equals(methodName) && method.getParameterCount() == parameterCount) {
+                    method.setAccessible(true);
+                    return method;
+                }
+            }
+            current = current.getSuperclass();
+        }
+
+        throw new NoSuchMethodException(type.getName() + "#" + methodName + "/" + parameterCount);
     }
 
     private static boolean isSupportedEditor(@NotNull Editor editor) {
@@ -158,22 +268,4 @@ public class SendTerminalSelectionToInputAction extends AnAction implements Dumb
                 || TerminalDataContextUtils.INSTANCE.isAlternateBufferEditor(editor);
     }
 
-    private static void logUpdateContext(@NotNull AnActionEvent event,
-                                         boolean popupPlace,
-                                         boolean widgetContext,
-                                         boolean editorContext,
-                                         boolean terminalContext) {
-        String place = event.getPlace();
-        boolean genericEditor = event.getData(CommonDataKeys.EDITOR) != null;
-        String signature = String.valueOf(place) + "|" + popupPlace + "|" + widgetContext + "|" + editorContext + "|" + genericEditor + "|" + terminalContext;
-        if (!loggedUpdateContexts.add(signature)) {
-            return;
-        }
-        LOG.debug("[TerminalSend] update place=" + place
-                + ", popupPlace=" + popupPlace
-                + ", hasTerminalWidget=" + widgetContext
-                + ", terminalEditorContext=" + editorContext
-                + ", genericEditor=" + genericEditor
-                + ", visible=" + terminalContext);
-    }
 }
