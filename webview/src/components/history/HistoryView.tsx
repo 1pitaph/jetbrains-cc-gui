@@ -50,6 +50,18 @@ const getComparableTimestamp = (timestamp: string | undefined) => {
   return Number.isNaN(value) ? 0 : value;
 };
 
+const formatFileSize = (bytes: number | undefined): { text: string; isMB: boolean } => {
+  if (!bytes || bytes === 0) {
+    return { text: '0 KB', isMB: false };
+  }
+  const kb = bytes / 1024;
+  if (kb < 1024) {
+    return { text: `${kb.toFixed(1)} KB`, isMB: false };
+  }
+  const mb = kb / 1024;
+  return { text: `${mb.toFixed(1)} MB`, isMB: true };
+};
+
 const deduplicateHistorySessions = (sessions: HistorySessionSummary[]) => {
   const deduplicated = new Map<string, HistorySessionSummary>();
 
@@ -430,7 +442,7 @@ const HistoryView = ({ historyData, currentProvider, onLoadSession, onDeleteSess
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div className="history-item-time">{formatTimeAgo(session.lastTimestamp, t)}</div>
             {!isEditing && (
-              <>
+              <div className="history-action-buttons">
                 {/* Edit button */}
                 <button
                   className="history-edit-btn"
@@ -467,12 +479,22 @@ const HistoryView = ({ historyData, currentProvider, onLoadSession, onDeleteSess
                 >
                   <span className="codicon codicon-trash"></span>
                 </button>
-              </>
+              </div>
             )}
           </div>
         </div>
         <div className="history-item-meta">
           <span>{t('history.messageCount', { count: session.messageCount })}</span>
+          {session.fileSize ? (() => {
+            const { text, isMB } = formatFileSize(session.fileSize);
+            return (
+              <>
+                <span className="history-meta-dot">•</span>
+                <span className={isMB ? 'history-filesize-large' : ''}>{text}</span>
+              </>
+            );
+          })() : null}
+          <span className="history-meta-dot">•</span>
           <div className="history-session-id-container">
             <span
               className="history-session-id"

@@ -58,6 +58,7 @@ export interface HistorySessionSummary {
   isFavorited?: boolean;
   favoritedAt?: number;
   provider?: string; // 'claude' or 'codex'
+  fileSize?: number;
 }
 
 export interface HistoryData {

@@ -35,9 +35,20 @@
 
 .history-item-meta {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
     font-size: 12px;
     color: var(--text-tertiary);
+}
+
+.history-meta-dot {
+    color: var(--text-tertiary);
+    opacity: 0.5;
+}
+
+.history-filesize-large {
+    color: #ff9500;
+    font-weight: 500;
 }
 
 /* 历史记录头部样式 */
@@ -206,6 +217,17 @@
         font-size: 14px;
         pointer-events: none;
     }
+}
+
+/* 操作按钮容器：默认隐藏，悬停时显示 */
+.history-action-buttons {
+    display: none;
+    align-items: center;
+    gap: 4px;
+}
+
+.history-item:hover .history-action-buttons {
+    display: flex;
 }
 
 .history-item:hover .history-delete-btn,
