@@ -64,6 +64,7 @@ public class ClaudeChatWindow {
     private volatile boolean initialized = false;
     private volatile boolean frontendReady = false;
     private volatile boolean slashCommandsFetched = false;
+    private volatile boolean restoredHistoryLoadStarted = false;
     private volatile int fetchedSlashCommandsCount = 0;
 
     private HandlerContext handlerContext;
@@ -359,6 +360,49 @@ public class ClaudeChatWindow {
 
         LOG.info("[TabRestore] Restored tab session state: provider=" + savedState.provider
                 + ", sessionId=" + savedState.sessionId + ", cwd=" + savedState.cwd + ")");
+    }
+
+    public void restorePersistedTabSessionState(TabStateService.TabSessionState savedState, boolean loadImmediately) {
+        restorePersistedTabSessionState(savedState);
+        if (TabSessionRestorePolicy.shouldLoadImmediately(savedState, loadImmediately)) {
+            loadRestoredHistoryIfNeeded(savedState);
+        }
+    }
+
+    public void loadRestoredHistoryIfNeeded() {
+        if (session == null) {
+            return;
+        }
+
+        TabStateService.TabSessionState currentState = new TabStateService.TabSessionState();
+        currentState.sessionId = session.getSessionId();
+        loadRestoredHistoryIfNeeded(currentState);
+    }
+
+    private void loadRestoredHistoryIfNeeded(TabStateService.TabSessionState savedState) {
+        if (!TabSessionRestorePolicy.shouldLoadHistory(savedState) || session == null) {
+            return;
+        }
+        if (restoredHistoryLoadStarted) {
+            return;
+        }
+        restoredHistoryLoadStarted = true;
+
+        session.loadFromServer().thenRun(() -> ApplicationManager.getApplication().invokeLater(() -> {
+            if (!disposed) {
+                callJavaScript("historyLoadComplete");
+            }
+        })).exceptionally(ex -> {
+            LOG.warn("[TabRestore] Failed to load persisted tab history: " + ex.getMessage(), ex);
+            ApplicationManager.getApplication().invokeLater(() -> {
+                if (!disposed) {
+                    callJavaScript("historyLoadComplete");
+                    callJavaScript("addErrorMessage",
+                            JsUtils.escapeJs("Failed to restore session history: " + ex.getMessage()));
+                }
+            });
+            return null;
+        });
     }
 
     public void addCodeSnippetFromExternal(String selectionInfo) {
