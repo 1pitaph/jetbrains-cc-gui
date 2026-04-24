@@ -5,6 +5,7 @@ import type { ProviderConfig, CodexProviderConfig } from '../../../types/provide
 import type { AgentConfig } from '../../../types/agent';
 import type { PromptConfig } from '../../../types/prompt';
 import type { UiFontConfig } from './useSettingsBasicActions';
+import type { PromptEnhancerConfig } from '../../../types/promptEnhancer';
 import type { AlertType } from '../../AlertDialog';
 import type { ToastMessage } from '../../Toast';
 
@@ -24,6 +25,7 @@ export interface SettingsWindowCallbacksDeps {
   setSavingWorkingDirectory: (saving: boolean) => void;
   setCommitPrompt: (prompt: string) => void;
   setSavingCommitPrompt: (saving: boolean) => void;
+  setPromptEnhancerConfig: (config: PromptEnhancerConfig) => void;
   setEditorFontConfig: (config: { fontFamily: string; fontSize: number; lineSpacing: number } | undefined) => void;
   setUiFontConfig: (config: UiFontConfig | undefined) => void;
   setIdeTheme: (theme: 'light' | 'dark' | null) => void;
@@ -247,6 +249,15 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
       }
     };
 
+    window.updatePromptEnhancerConfig = (jsonStr: string) => {
+      try {
+        const data = JSON.parse(jsonStr);
+        d().setPromptEnhancerConfig(data);
+      } catch (error) {
+        console.error('[SettingsView] Failed to parse prompt enhancer config:', error);
+      }
+    };
+
     // AI commit generation config callback
     window.updateCommitGenerationEnabled = (jsonStr: string) => {
       try {
@@ -419,6 +430,7 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
     sendToJava('get_streaming_enabled:');
     sendToJava('get_codex_sandbox_mode:');
     sendToJava('get_commit_prompt:');
+    sendToJava('get_prompt_enhancer_config:');
     sendToJava('get_sound_notification_config:');
     sendToJava('get_commit_generation_enabled:');
     sendToJava('get_status_bar_widget_enabled:');
@@ -446,6 +458,7 @@ export function useSettingsWindowCallbacks(deps: SettingsWindowCallbacksDeps) {
         window.updateSendShortcut = previousUpdateSendShortcut;
       }
       window.updateCommitPrompt = undefined;
+      window.updatePromptEnhancerConfig = undefined;
       window.updateSoundNotificationConfig = undefined;
       window.updateCommitGenerationEnabled = undefined;
       window.updateStatusBarWidgetEnabled = undefined;

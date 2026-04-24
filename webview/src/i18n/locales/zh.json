@@ -173,6 +173,20 @@
         "disabled": "已关闭",
         "hint": "开启后，在项目树选择文件时会自动将文件路径告诉 AI（注意：只传递文件路径，不传文件内容）。关闭后需要手动操作。"
       },
+      "promptEnhancer": {
+        "label": "增强提示词",
+        "modelLabel": "增强模型",
+        "resetToDefault": "恢复默认",
+        "providerAvailable": "可用",
+        "providerUnavailable": "当前不可用",
+        "provider": {
+          "claude": "Claude Code",
+          "codex": "Codex"
+        },
+        "currentProviderAuto": "当前使用自动选择：{{provider}}",
+        "currentProviderManual": "当前使用手动选择的 provider：{{provider}}",
+        "currentProviderUnavailable": "当前所选 provider 不可用：{{provider}}"
+      },
       "diffExpanded": {
         "label": "默认展开差异",
         "enabled": "已展开",
@@ -246,6 +260,10 @@
     },
     "providers": "供应商管理",
     "providersDesc": "管理 Claude 和 Codex API 供应商配置，切换不同的 API 服务提供商",
+    "promptEnhancer": {
+      "title": "增强提示词",
+      "description": "配置增强提示词功能使用的 provider 与模型，在消息发送前对输入内容进行重写增强。"
+    },
     "providerTab": {
       "claude": "Claude Code",
       "codex": "Codex"

@@ -328,6 +328,46 @@ public class ProjectConfigHandler {
         }
     }
 
+    public void handleGetPromptEnhancerConfig() {
+        try {
+            JsonObject config = settingsService.getPromptEnhancerConfig();
+            ApplicationManager.getApplication().invokeLater(() ->
+                context.callJavaScript("window.updatePromptEnhancerConfig", context.escapeJs(gson.toJson(config))));
+        } catch (Exception e) {
+            LOG.error("[ProjectConfigHandler] Failed to get prompt enhancer config: " + e.getMessage(), e);
+            ApplicationManager.getApplication().invokeLater(() ->
+                context.callJavaScript("window.showError", context.escapeJs("获取增强提示词配置失败: " + e.getMessage())));
+        }
+    }
+
+    public void handleSetPromptEnhancerConfig(String content) {
+        try {
+            JsonObject json = gson.fromJson(content, JsonObject.class);
+            String provider = json != null && json.has("provider") && !json.get("provider").isJsonNull()
+                    ? json.get("provider").getAsString()
+                    : null;
+
+            JsonObject models = json != null && json.has("models") && json.get("models").isJsonObject()
+                    ? json.getAsJsonObject("models")
+                    : new JsonObject();
+            String claudeModel = models.has("claude") && !models.get("claude").isJsonNull()
+                    ? models.get("claude").getAsString()
+                    : null;
+            String codexModel = models.has("codex") && !models.get("codex").isJsonNull()
+                    ? models.get("codex").getAsString()
+                    : null;
+
+            settingsService.setPromptEnhancerConfig(provider, claudeModel, codexModel);
+            JsonObject updatedConfig = settingsService.getPromptEnhancerConfig();
+            ApplicationManager.getApplication().invokeLater(() ->
+                context.callJavaScript("window.updatePromptEnhancerConfig", context.escapeJs(gson.toJson(updatedConfig))));
+        } catch (Exception e) {
+            LOG.error("[ProjectConfigHandler] Failed to set prompt enhancer config: " + e.getMessage(), e);
+            ApplicationManager.getApplication().invokeLater(() ->
+                context.callJavaScript("window.showError", context.escapeJs("保存增强提示词配置失败: " + e.getMessage())));
+        }
+    }
+
     public void handleGetIdeTheme() {
         try {
             String themeConfigJson = ThemeConfigService.getIdeThemeConfig().toString();

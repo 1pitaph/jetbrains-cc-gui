@@ -169,6 +169,20 @@
         "disabled": "Отключено",
         "hint": "При включении выбор файла в дереве проекта автоматически отправит его путь в AI (примечание: отправляется только путь к файлу, а не его содержимое). При отключении требуется ручное действие."
       },
+      "promptEnhancer": {
+        "label": "Prompt Enhancer",
+        "modelLabel": "Enhancer Model",
+        "resetToDefault": "Restore Default",
+        "providerAvailable": "Available",
+        "providerUnavailable": "Currently unavailable",
+        "provider": {
+          "claude": "Claude Code",
+          "codex": "Codex"
+        },
+        "currentProviderAuto": "Currently using automatic selection: {{provider}}",
+        "currentProviderManual": "Currently using manually selected provider: {{provider}}",
+        "currentProviderUnavailable": "The selected provider is currently unavailable: {{provider}}"
+      },
       "diffExpanded": {
         "label": "Разворачивать diff по умолчанию",
         "enabled": "Развёрнуто",
@@ -240,6 +254,10 @@
     "mcpDesc": "Настройка и управление серверами Model Context Protocol",
     "permissions": "Разрешения",
     "permissionsDesc": "Управление правами доступа Claude Code к файлам и операциям",
+    "promptEnhancer": {
+      "title": "Prompt Enhancer",
+      "description": "Choose which provider and model should be used when enhancing prompts before sending them."
+    },
     "commit": {
       "title": "Commit AI",
       "description": "Настройка AI-генерации сообщений Git-коммитов",

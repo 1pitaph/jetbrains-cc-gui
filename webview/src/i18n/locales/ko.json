@@ -169,6 +169,20 @@
         "disabled": "비활성화",
         "hint": "활성화하면 프로젝트 트리에서 파일을 선택할 때 자동으로 파일 경로를 AI에 전송합니다 (참고: 파일 경로만 전송되며 파일 내용은 전송되지 않습니다). 비활성화하면 수동 조작이 필요합니다."
       },
+      "promptEnhancer": {
+        "label": "Prompt Enhancer",
+        "modelLabel": "Enhancer Model",
+        "resetToDefault": "Restore Default",
+        "providerAvailable": "Available",
+        "providerUnavailable": "Currently unavailable",
+        "provider": {
+          "claude": "Claude Code",
+          "codex": "Codex"
+        },
+        "currentProviderAuto": "Currently using automatic selection: {{provider}}",
+        "currentProviderManual": "Currently using manually selected provider: {{provider}}",
+        "currentProviderUnavailable": "The selected provider is currently unavailable: {{provider}}"
+      },
       "diffExpanded": {
         "label": "Diff 기본 펼침",
         "enabled": "펼침",
@@ -263,6 +277,10 @@
     "permissions": "권한",
     "permissionsDesc": "Claude Code 파일 접근 및 작업 권한 관리",
     "codexPermissionsDesc": "Codex 권한 및 샌드박스 정책 관리",
+    "promptEnhancer": {
+      "title": "Prompt Enhancer",
+      "description": "Choose which provider and model should be used when enhancing prompts before sending them."
+    },
     "permissionsPanel": {
       "codexSandboxTitle": "Codex 샌드박스 모드",
       "codexSandboxDesc": "Codex가 명령을 실행할 때의 시스템 접근 범위를 제어합니다. 기본값은 danger-full-access입니다. 더 엄격한 샌드박스를 위해 workspace-write로 전환하세요.",

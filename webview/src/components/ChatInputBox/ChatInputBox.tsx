@@ -406,7 +406,6 @@ export const ChatInputBox = memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProp
     } = usePromptEnhancer({
       editableRef,
       getTextContent,
-      selectedModel,
       setHasContent,
       onInput,
     });

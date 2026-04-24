@@ -409,6 +409,11 @@ interface Window {
   updateEnhancedPrompt?: (result: string) => void;
 
   /**
+   * Update prompt enhancer settings config from backend
+   */
+  updatePromptEnhancerConfig?: (json: string) => void;
+
+  /**
    * Update session title (called when session title changes)
    */
   updateSessionTitle?: (title: string) => void;

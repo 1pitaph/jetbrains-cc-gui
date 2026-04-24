@@ -16,6 +16,7 @@ import CommunitySection from './CommunitySection';
 import AgentSection from './AgentSection';
 import PromptSection from './PromptSection';
 import CommitSection from './CommitSection';
+import PromptEnhancerSection from './PromptEnhancerSection';
 import OtherSettingsSection from './OtherSettingsSection';
 import { SkillsSettingsSection } from '../skills';
 import SettingsDialogs from './SettingsDialogs';
@@ -121,6 +122,8 @@ const SettingsView = ({
     setLocalSendShortcut,
     sendShortcut,
     autoOpenFileEnabled,
+    promptEnhancerConfig,
+    setPromptEnhancerConfig,
     commitPrompt,
     setCommitPrompt,
     savingCommitPrompt,
@@ -160,6 +163,9 @@ const SettingsView = ({
     statusBarWidgetEnabled,
     setStatusBarWidgetEnabled,
     handleStatusBarWidgetEnabledChange,
+    handlePromptEnhancerProviderChange,
+    handlePromptEnhancerModelChange,
+    handlePromptEnhancerResetToDefault,
   } = useSettingsBasicActions({
     streamingEnabledProp,
     onStreamingEnabledChangeProp,
@@ -260,6 +266,7 @@ const SettingsView = ({
     setSavingWorkingDirectory,
     setCommitPrompt,
     setSavingCommitPrompt,
+    setPromptEnhancerConfig,
     setEditorFontConfig,
     setUiFontConfig,
     setIdeTheme,
@@ -503,6 +510,16 @@ const SettingsView = ({
             ) : (
               <PlaceholderSection type="permissions" />
             )}
+          </div>
+
+          {/* Prompt enhancer configuration */}
+          <div style={{ display: currentTab === 'promptEnhancer' ? 'block' : 'none' }}>
+            <PromptEnhancerSection
+              promptEnhancerConfig={promptEnhancerConfig}
+              onPromptEnhancerProviderChange={handlePromptEnhancerProviderChange}
+              onPromptEnhancerModelChange={handlePromptEnhancerModelChange}
+              onPromptEnhancerResetToDefault={handlePromptEnhancerResetToDefault}
+            />
           </div>
 
           {/* Commit AI configuration */}

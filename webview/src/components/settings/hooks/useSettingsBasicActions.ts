@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 export type { UiFontConfig } from '../../../types/uiFontConfig';
 import type { UiFontConfig } from '../../../types/uiFontConfig';
+import type { PromptEnhancerConfig, PromptEnhancerProvider } from '../../../types/promptEnhancer';
+import { DEFAULT_PROMPT_ENHANCER_CONFIG } from '../../../types/promptEnhancer';
 
 const sendToJava = (message: string) => {
   if (window.sendToJava) {
@@ -56,6 +58,7 @@ export interface UseSettingsBasicActionsReturn {
   historyCompletionEnabled: boolean;
   commitGenerationEnabled: boolean;
   statusBarWidgetEnabled: boolean;
+  promptEnhancerConfig: PromptEnhancerConfig;
 
   // =========================================================================
   // Handler functions (public API for components)
@@ -79,6 +82,9 @@ export interface UseSettingsBasicActionsReturn {
   handleSaveCommitPrompt: () => void;
   handleCommitGenerationEnabledChange: (enabled: boolean) => void;
   handleStatusBarWidgetEnabledChange: (enabled: boolean) => void;
+  handlePromptEnhancerProviderChange: (provider: PromptEnhancerProvider) => void;
+  handlePromptEnhancerModelChange: (model: string) => void;
+  handlePromptEnhancerResetToDefault: () => void;
 
   // =========================================================================
   // @internal — State setters used only by useSettingsWindowCallbacks.
@@ -114,6 +120,7 @@ export interface UseSettingsBasicActionsReturn {
   /** @internal */ setHistoryCompletionEnabled: (enabled: boolean) => void;
   /** @internal */ setCommitGenerationEnabled: (enabled: boolean) => void;
   /** @internal */ setStatusBarWidgetEnabled: (enabled: boolean) => void;
+  /** @internal */ setPromptEnhancerConfig: (config: PromptEnhancerConfig) => void;
 }
 
 export function useSettingsBasicActions({
@@ -191,6 +198,9 @@ export function useSettingsBasicActions({
 
   // Status bar widget toggle (default: true)
   const [statusBarWidgetEnabled, setStatusBarWidgetEnabled] = useState<boolean>(true);
+  const [promptEnhancerConfig, setPromptEnhancerConfig] = useState<PromptEnhancerConfig>(
+    DEFAULT_PROMPT_ENHANCER_CONFIG
+  );
 
   // Diff expanded by default handler
   useEffect(() => {
@@ -342,6 +352,55 @@ export function useSettingsBasicActions({
     sendToJava(`set_status_bar_widget_enabled:${JSON.stringify(payload)}`);
   }, []);
 
+  const handlePromptEnhancerProviderChange = useCallback((provider: PromptEnhancerProvider) => {
+    const providerAvailable = promptEnhancerConfig.availability[provider];
+    const nextConfig: PromptEnhancerConfig = {
+      ...promptEnhancerConfig,
+      provider,
+      effectiveProvider: providerAvailable ? provider : null,
+      resolutionSource: providerAvailable ? 'manual' : 'unavailable',
+    };
+    setPromptEnhancerConfig(nextConfig);
+    sendToJava(`set_prompt_enhancer_config:${JSON.stringify({
+      provider,
+      models: nextConfig.models,
+    })}`);
+  }, [promptEnhancerConfig]);
+
+  const handlePromptEnhancerModelChange = useCallback((model: string) => {
+    const activeProvider = promptEnhancerConfig.provider ?? promptEnhancerConfig.effectiveProvider ?? 'claude';
+    const nextConfig: PromptEnhancerConfig = {
+      ...promptEnhancerConfig,
+      models: {
+        ...promptEnhancerConfig.models,
+        [activeProvider]: model,
+      },
+    };
+    setPromptEnhancerConfig(nextConfig);
+    sendToJava(`set_prompt_enhancer_config:${JSON.stringify({
+      provider: promptEnhancerConfig.provider,
+      models: nextConfig.models,
+    })}`);
+  }, [promptEnhancerConfig]);
+
+  const handlePromptEnhancerResetToDefault = useCallback(() => {
+    const nextConfig: PromptEnhancerConfig = {
+      ...promptEnhancerConfig,
+      provider: null,
+      effectiveProvider: promptEnhancerConfig.availability.codex
+        ? 'codex'
+        : (promptEnhancerConfig.availability.claude ? 'claude' : null),
+      resolutionSource: promptEnhancerConfig.availability.codex || promptEnhancerConfig.availability.claude
+        ? 'auto'
+        : 'unavailable',
+    };
+    setPromptEnhancerConfig(nextConfig);
+    sendToJava(`set_prompt_enhancer_config:${JSON.stringify({
+      provider: null,
+      models: nextConfig.models,
+    })}`);
+  }, [promptEnhancerConfig]);
+
   // Commit AI prompt save handler
   const handleSaveCommitPrompt = useCallback(() => {
     setSavingCommitPrompt(true);
@@ -416,5 +475,10 @@ export function useSettingsBasicActions({
     statusBarWidgetEnabled,
     setStatusBarWidgetEnabled,
     handleStatusBarWidgetEnabledChange,
+    promptEnhancerConfig,
+    setPromptEnhancerConfig,
+    handlePromptEnhancerProviderChange,
+    handlePromptEnhancerModelChange,
+    handlePromptEnhancerResetToDefault,
   };
 }

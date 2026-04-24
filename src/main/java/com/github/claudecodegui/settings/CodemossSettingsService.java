@@ -5,8 +5,10 @@ import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
 import com.github.claudecodegui.model.ConflictStrategy;
 import com.github.claudecodegui.model.DeleteResult;
 import com.github.claudecodegui.model.PromptScope;
+import com.github.claudecodegui.dependency.DependencyManager;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.openapi.diagnostic.Logger;
@@ -45,6 +47,19 @@ public class CodemossSettingsService {
     public static final String CODEX_RUNTIME_ACCESS_INACTIVE = "inactive";
     public static final String CODEX_RUNTIME_ACCESS_MANAGED = "managed";
     public static final String CODEX_RUNTIME_ACCESS_CLI_LOGIN = "cli_login";
+    private static final String PROMPT_ENHANCER_KEY = "promptEnhancer";
+    private static final String PROMPT_ENHANCER_PROVIDER_KEY = "provider";
+    private static final String PROMPT_ENHANCER_MODELS_KEY = "models";
+    private static final String PROMPT_ENHANCER_EFFECTIVE_PROVIDER_KEY = "effectiveProvider";
+    private static final String PROMPT_ENHANCER_RESOLUTION_SOURCE_KEY = "resolutionSource";
+    private static final String PROMPT_ENHANCER_AVAILABILITY_KEY = "availability";
+    private static final String PROMPT_ENHANCER_PROVIDER_CLAUDE = "claude";
+    private static final String PROMPT_ENHANCER_PROVIDER_CODEX = "codex";
+    private static final String PROMPT_ENHANCER_RESOLUTION_MANUAL = "manual";
+    private static final String PROMPT_ENHANCER_RESOLUTION_AUTO = "auto";
+    private static final String PROMPT_ENHANCER_RESOLUTION_UNAVAILABLE = "unavailable";
+    private static final String DEFAULT_PROMPT_ENHANCER_CLAUDE_MODEL = "claude-sonnet-4-6";
+    private static final String DEFAULT_PROMPT_ENHANCER_CODEX_MODEL = "gpt-5.5";
 
     private final Gson gson;
 
@@ -1169,6 +1184,175 @@ public class CodemossSettingsService {
         config.addProperty("statusBarWidgetEnabled", enabled);
         writeConfig(config);
         LOG.info("[CodemossSettings] Set status bar widget enabled: " + enabled);
+    }
+
+    // ==================== Prompt Enhancer Config Management ====================
+
+    /**
+     * Get prompt enhancer configuration with resolved provider availability.
+     *
+     * <p>The returned object always includes:
+     * <ul>
+     *     <li>provider: manual override or null</li>
+     *     <li>models: per-provider remembered models</li>
+     *     <li>effectiveProvider: resolved runtime provider or null</li>
+     *     <li>resolutionSource: manual/auto/unavailable</li>
+     *     <li>availability: per-provider availability flags</li>
+     * </ul>
+     */
+    public JsonObject getPromptEnhancerConfig() throws IOException {
+        JsonObject rootConfig = readConfig();
+        JsonObject promptEnhancer = rootConfig.has(PROMPT_ENHANCER_KEY) && rootConfig.get(PROMPT_ENHANCER_KEY).isJsonObject()
+                ? rootConfig.getAsJsonObject(PROMPT_ENHANCER_KEY)
+                : new JsonObject();
+
+        String manualProvider = normalizePromptEnhancerProvider(
+                promptEnhancer.has(PROMPT_ENHANCER_PROVIDER_KEY) && !promptEnhancer.get(PROMPT_ENHANCER_PROVIDER_KEY).isJsonNull()
+                        ? promptEnhancer.get(PROMPT_ENHANCER_PROVIDER_KEY).getAsString()
+                        : null
+        );
+
+        JsonObject models = getNormalizedPromptEnhancerModels(promptEnhancer);
+        JsonObject availability = buildPromptEnhancerAvailability();
+        boolean claudeAvailable = availability.get(PROMPT_ENHANCER_PROVIDER_CLAUDE).getAsBoolean();
+        boolean codexAvailable = availability.get(PROMPT_ENHANCER_PROVIDER_CODEX).getAsBoolean();
+
+        String effectiveProvider;
+        String resolutionSource;
+        if (manualProvider != null) {
+            boolean manualProviderAvailable = PROMPT_ENHANCER_PROVIDER_CODEX.equals(manualProvider)
+                    ? codexAvailable
+                    : claudeAvailable;
+            if (manualProviderAvailable) {
+                effectiveProvider = manualProvider;
+                resolutionSource = PROMPT_ENHANCER_RESOLUTION_MANUAL;
+            } else {
+                effectiveProvider = null;
+                resolutionSource = PROMPT_ENHANCER_RESOLUTION_UNAVAILABLE;
+            }
+        } else if (codexAvailable) {
+            effectiveProvider = PROMPT_ENHANCER_PROVIDER_CODEX;
+            resolutionSource = PROMPT_ENHANCER_RESOLUTION_AUTO;
+        } else if (claudeAvailable) {
+            effectiveProvider = PROMPT_ENHANCER_PROVIDER_CLAUDE;
+            resolutionSource = PROMPT_ENHANCER_RESOLUTION_AUTO;
+        } else {
+            effectiveProvider = null;
+            resolutionSource = PROMPT_ENHANCER_RESOLUTION_UNAVAILABLE;
+        }
+
+        JsonObject response = new JsonObject();
+        if (manualProvider == null) {
+            response.add(PROMPT_ENHANCER_PROVIDER_KEY, JsonNull.INSTANCE);
+        } else {
+            response.addProperty(PROMPT_ENHANCER_PROVIDER_KEY, manualProvider);
+        }
+        response.add(PROMPT_ENHANCER_MODELS_KEY, models);
+        if (effectiveProvider == null) {
+            response.add(PROMPT_ENHANCER_EFFECTIVE_PROVIDER_KEY, JsonNull.INSTANCE);
+        } else {
+            response.addProperty(PROMPT_ENHANCER_EFFECTIVE_PROVIDER_KEY, effectiveProvider);
+        }
+        response.addProperty(PROMPT_ENHANCER_RESOLUTION_SOURCE_KEY, resolutionSource);
+        response.add(PROMPT_ENHANCER_AVAILABILITY_KEY, availability);
+        return response;
+    }
+
+    /**
+     * Persist prompt enhancer provider override and per-provider models.
+     *
+     * @param provider manual provider override, null/blank to restore auto mode
+     * @param claudeModel remembered Claude enhancer model
+     * @param codexModel remembered Codex enhancer model
+     */
+    public void setPromptEnhancerConfig(String provider, String claudeModel, String codexModel) throws IOException {
+        JsonObject config = readConfig();
+        JsonObject promptEnhancer = config.has(PROMPT_ENHANCER_KEY) && config.get(PROMPT_ENHANCER_KEY).isJsonObject()
+                ? config.getAsJsonObject(PROMPT_ENHANCER_KEY)
+                : new JsonObject();
+
+        String normalizedProvider = normalizePromptEnhancerProvider(provider);
+        if (normalizedProvider == null) {
+            promptEnhancer.add(PROMPT_ENHANCER_PROVIDER_KEY, JsonNull.INSTANCE);
+        } else {
+            promptEnhancer.addProperty(PROMPT_ENHANCER_PROVIDER_KEY, normalizedProvider);
+        }
+        promptEnhancer.add(PROMPT_ENHANCER_MODELS_KEY, createPromptEnhancerModels(claudeModel, codexModel));
+
+        config.add(PROMPT_ENHANCER_KEY, promptEnhancer);
+        writeConfig(config);
+        LOG.info("[CodemossSettings] Set prompt enhancer config: provider=" + normalizedProvider);
+    }
+
+    private JsonObject buildPromptEnhancerAvailability() {
+        JsonObject availability = new JsonObject();
+        availability.addProperty(PROMPT_ENHANCER_PROVIDER_CLAUDE, isPromptEnhancerProviderAvailable(PROMPT_ENHANCER_PROVIDER_CLAUDE));
+        availability.addProperty(PROMPT_ENHANCER_PROVIDER_CODEX, isPromptEnhancerProviderAvailable(PROMPT_ENHANCER_PROVIDER_CODEX));
+        return availability;
+    }
+
+    private boolean isPromptEnhancerProviderAvailable(String provider) {
+        try {
+            DependencyManager dependencyManager = new DependencyManager();
+            if (PROMPT_ENHANCER_PROVIDER_CODEX.equals(provider)) {
+                return getActiveCodexProvider() != null && dependencyManager.isInstalled("codex-sdk");
+            }
+            return getActiveClaudeProvider() != null && dependencyManager.isInstalled("claude-sdk");
+        } catch (Exception e) {
+            LOG.warn("[CodemossSettings] Failed to resolve prompt enhancer availability for " + provider + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    private JsonObject getNormalizedPromptEnhancerModels(JsonObject promptEnhancer) {
+        if (promptEnhancer != null
+                && promptEnhancer.has(PROMPT_ENHANCER_MODELS_KEY)
+                && promptEnhancer.get(PROMPT_ENHANCER_MODELS_KEY).isJsonObject()) {
+            JsonObject rawModels = promptEnhancer.getAsJsonObject(PROMPT_ENHANCER_MODELS_KEY);
+            String claudeModel = rawModels.has(PROMPT_ENHANCER_PROVIDER_CLAUDE) && !rawModels.get(PROMPT_ENHANCER_PROVIDER_CLAUDE).isJsonNull()
+                    ? rawModels.get(PROMPT_ENHANCER_PROVIDER_CLAUDE).getAsString()
+                    : null;
+            String codexModel = rawModels.has(PROMPT_ENHANCER_PROVIDER_CODEX) && !rawModels.get(PROMPT_ENHANCER_PROVIDER_CODEX).isJsonNull()
+                    ? rawModels.get(PROMPT_ENHANCER_PROVIDER_CODEX).getAsString()
+                    : null;
+            return createPromptEnhancerModels(claudeModel, codexModel);
+        }
+        return createPromptEnhancerModels(null, null);
+    }
+
+    private JsonObject createPromptEnhancerModels(String claudeModel, String codexModel) {
+        JsonObject models = new JsonObject();
+        models.addProperty(
+                PROMPT_ENHANCER_PROVIDER_CLAUDE,
+                normalizePromptEnhancerModel(claudeModel, DEFAULT_PROMPT_ENHANCER_CLAUDE_MODEL)
+        );
+        models.addProperty(
+                PROMPT_ENHANCER_PROVIDER_CODEX,
+                normalizePromptEnhancerModel(codexModel, DEFAULT_PROMPT_ENHANCER_CODEX_MODEL)
+        );
+        return models;
+    }
+
+    private String normalizePromptEnhancerProvider(String provider) {
+        if (provider == null) {
+            return null;
+        }
+        String normalized = provider.trim().toLowerCase();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        if (PROMPT_ENHANCER_PROVIDER_CLAUDE.equals(normalized) || PROMPT_ENHANCER_PROVIDER_CODEX.equals(normalized)) {
+            return normalized;
+        }
+        return null;
+    }
+
+    private String normalizePromptEnhancerModel(String model, String defaultValue) {
+        if (model == null) {
+            return defaultValue;
+        }
+        String normalized = model.trim();
+        return normalized.isEmpty() ? defaultValue : normalized;
     }
 
     // ==================== Codex Provider Management ====================
