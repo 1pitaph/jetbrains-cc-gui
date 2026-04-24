@@ -78,6 +78,21 @@ export function registerWindowCallbacks(
   registerPermissionCallbacks(options);
   registerAgentAndSelectionCallbacks(options);
 
+  window.onSubagentHistoryLoaded = (json: string) => {
+    try {
+      if (!options.setSubagentHistories) return;
+      const result = JSON.parse(json);
+      const key = result.toolUseId || result.agentId;
+      if (!key) return;
+      options.setSubagentHistories((prev) => ({
+        ...prev,
+        [key]: result,
+      }));
+    } catch {
+      // Ignore malformed callback payloads; the request can be retried by reopening the Agent row.
+    }
+  };
+
   // =========================================================================
   // Slash Commands Setup
   // =========================================================================

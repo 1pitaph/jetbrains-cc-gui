@@ -54,6 +54,7 @@ import { APP_VERSION } from './version/version';
 import type {
   ClaudeMessage,
   HistoryData,
+  SubagentHistoryResponse,
   ToolResultBlock,
 } from './types';
 
@@ -76,6 +77,7 @@ const App = () => {
 
   // ── Core state (shared across multiple hooks) ──
   const [messages, setMessages] = useState<ClaudeMessage[]>([]);
+  const [subagentHistories, setSubagentHistories] = useState<Record<string, SubagentHistoryResponse>>({});
   const [_status, setStatus] = useState(DEFAULT_STATUS);
   const [loading, setLoading] = useState(false);
   const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null);
@@ -246,6 +248,7 @@ const App = () => {
     setSdkStatus, setSdkStatusLoaded,
     setIsRewinding, setRewindDialogOpen, setCurrentRewindRequest,
     setContextInfo, setSelectedAgent,
+    setSubagentHistories,
     currentProviderRef, messagesContainerRef, isUserAtBottomRef, userPausedRef,
     suppressNextStatusToastRef,
     streamingContentRef, isStreamingRef, useBackendStreamingRenderRef,
@@ -285,7 +288,7 @@ const App = () => {
         (block): block is ToolResultBlock =>
           Boolean(block) && block.type === 'tool_result' && block.tool_use_id === toolUseId,
       );
-      if (resultBlock) return resultBlock;
+      if (resultBlock) return { ...resultBlock, __rawMessage: raw } as ToolResultBlock;
     }
     return null;
   }, []);
@@ -548,6 +551,8 @@ const App = () => {
                   setSettingsInitialTab('providers');
                   setCurrentView('settings');
                 }}
+                currentSessionId={currentSessionId}
+                subagentHistories={subagentHistories}
               />
             </div>
           </div>
@@ -574,6 +579,8 @@ const App = () => {
               todos={globalTodos}
               fileChanges={filteredFileChanges}
               subagents={subagents}
+              subagentHistories={subagentHistories}
+              currentSessionId={currentSessionId}
               expanded={statusPanelExpanded}
               isStreaming={streamingActive}
               onUndoFile={handleUndoFile}

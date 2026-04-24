@@ -1,12 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ToolInput, ToolResultBlock } from '../../types';
+import type { SubagentHistoryResponse, ToolInput, ToolResultBlock } from '../../types';
 import { normalizeToolName } from '../../utils/toolConstants';
+import { sendBridgeEvent } from '../../utils/bridge';
+import SubagentProcessDetails from '../StatusPanel/SubagentProcessDetails';
 
 interface TaskExecutionBlockProps {
   name?: string;
   input?: ToolInput;
   result?: ToolResultBlock | null;
+  toolId?: string;
+  currentSessionId?: string | null;
+  subagentHistories?: Record<string, SubagentHistoryResponse>;
+  isStreaming?: boolean;
 }
 
 type SpawnAgentMeta = {
@@ -82,12 +88,32 @@ function parseSpawnAgentMeta(input: ToolInput, result?: ToolResultBlock | null):
   return { agentId, nickname, model, reasoningEffort };
 }
 
+function parseAgentToolMeta(result?: ToolResultBlock | null): {
+  agentId?: string;
+  totalDurationMs?: number;
+  totalTokens?: number;
+  totalToolUseCount?: number;
+} {
+  const rawMessage = (result as unknown as { __rawMessage?: { toolUseResult?: unknown } } | null)?.__rawMessage;
+  const metadata = rawMessage?.toolUseResult;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return {};
+  const record = metadata as Record<string, unknown>;
+  const getString = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : undefined);
+  const getNumber = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+  return {
+    agentId: getString(record.agentId),
+    totalDurationMs: getNumber(record.totalDurationMs),
+    totalTokens: getNumber(record.totalTokens),
+    totalToolUseCount: getNumber(record.totalToolUseCount),
+  };
+}
+
 function shortenAgentId(agentId?: string): string | undefined {
   if (!agentId) return undefined;
   return agentId.length > 8 ? `${agentId.slice(0, 8)}…` : agentId;
 }
 
-const TaskExecutionBlock = ({ name, input, result }: TaskExecutionBlockProps) => {
+const TaskExecutionBlock = ({ name, input, result, toolId, currentSessionId, subagentHistories = {}, isStreaming = false }: TaskExecutionBlockProps) => {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
@@ -97,6 +123,7 @@ const TaskExecutionBlock = ({ name, input, result }: TaskExecutionBlockProps) =>
 
   const normalizedName = normalizeToolName(name ?? '');
   const isSpawnAgent = normalizedName === 'spawn_agent';
+  const isAgentTool = normalizedName === 'agent' || normalizedName === 'task' || normalizedName === 'spawn_agent';
   const {
     description,
     prompt,
@@ -113,13 +140,39 @@ const TaskExecutionBlock = ({ name, input, result }: TaskExecutionBlockProps) =>
     ...rest
   } = input;
   const spawnMeta = isSpawnAgent ? parseSpawnAgentMeta(input, result) : {};
+  const agentToolMeta = !isSpawnAgent ? parseAgentToolMeta(result) : {};
+  const agentId = spawnMeta.agentId ?? agentToolMeta.agentId;
   const identityLabel = spawnMeta.nickname || (typeof subagentType === 'string' && subagentType ? subagentType : undefined);
   const modelSummary = [spawnMeta.model, spawnMeta.reasoningEffort].filter(Boolean).join(' ');
-  const shortAgentId = shortenAgentId(spawnMeta.agentId);
+  const shortAgentId = shortenAgentId(agentId);
 
   // Determine status based on result
   const isCompleted = result !== undefined && result !== null;
   const isError = isCompleted && result?.is_error === true;
+  const history = (toolId ? subagentHistories[toolId] : undefined) ?? (agentId ? subagentHistories[agentId] : undefined);
+
+  useEffect(() => {
+    if (!expanded || !isAgentTool || !currentSessionId || !toolId || history) return;
+    sendBridgeEvent('load_subagent_session', JSON.stringify({
+      sessionId: currentSessionId,
+      agentId,
+      description: typeof description === 'string' ? description : undefined,
+      toolUseId: toolId,
+    }));
+  }, [agentId, currentSessionId, description, expanded, history, isAgentTool, toolId]);
+
+  useEffect(() => {
+    if (!expanded || !isAgentTool || !isStreaming || isCompleted || !currentSessionId || !toolId) return;
+    const timer = window.setInterval(() => {
+      sendBridgeEvent('load_subagent_session', JSON.stringify({
+        sessionId: currentSessionId,
+        agentId,
+        description: typeof description === 'string' ? description : undefined,
+        toolUseId: toolId,
+      }));
+    }, 2_000);
+    return () => window.clearInterval(timer);
+  }, [agentId, currentSessionId, description, expanded, isAgentTool, isCompleted, isStreaming, toolId]);
 
   return (
     <div className="task-container">
@@ -189,6 +242,18 @@ const TaskExecutionBlock = ({ name, input, result }: TaskExecutionBlockProps) =>
               </div>
             )}
 
+            {isAgentTool && (
+              <SubagentProcessDetails
+                agentId={agentId}
+                totalDurationMs={agentToolMeta.totalDurationMs}
+                totalTokens={agentToolMeta.totalTokens}
+                totalToolUseCount={agentToolMeta.totalToolUseCount}
+                resultText={extractResultText(result)}
+                history={history}
+                canLoad={Boolean(currentSessionId)}
+              />
+            )}
+
             {typeof prompt === 'string' && (
               <div className="task-field">
                 <div className="task-field-label">
@@ -217,4 +282,3 @@ const TaskExecutionBlock = ({ name, input, result }: TaskExecutionBlockProps) =>
 };
 
 export default TaskExecutionBlock;
-

@@ -22,6 +22,44 @@ function determineStatus(result: ToolResultBlock | null): SubagentStatus {
   return 'completed';
 }
 
+function extractResultText(result: ToolResultBlock | null): string | undefined {
+  if (!result) return undefined;
+  if (typeof result.content === 'string') return result.content;
+  if (!Array.isArray(result.content)) return undefined;
+  const text = result.content
+    .map((item) => (item && typeof item.text === 'string' ? item.text : ''))
+    .filter(Boolean)
+    .join('\n');
+  return text || undefined;
+}
+
+function extractResultMetadata(result: ToolResultBlock | null): Partial<SubagentInfo> {
+  const rawMessage = (result as unknown as { __rawMessage?: { toolUseResult?: unknown } } | null)?.__rawMessage;
+  const metadata = rawMessage?.toolUseResult;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return { resultText: extractResultText(result) };
+  }
+
+  const record = metadata as Record<string, unknown>;
+  const getString = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : undefined);
+  const getNumber = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+  const toolStats = record.toolStats && typeof record.toolStats === 'object' && !Array.isArray(record.toolStats)
+    ? Object.fromEntries(
+      Object.entries(record.toolStats as Record<string, unknown>)
+        .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1])),
+    )
+    : undefined;
+
+  return {
+    agentId: getString(record.agentId),
+    totalDurationMs: getNumber(record.totalDurationMs),
+    totalTokens: getNumber(record.totalTokens),
+    totalToolUseCount: getNumber(record.totalToolUseCount),
+    toolStats,
+    resultText: extractResultText(result),
+  };
+}
+
 export function extractSubagentsFromMessages(
   messages: ClaudeMessage[],
   getContentBlocks: (message: ClaudeMessage) => ClaudeContentBlock[],
@@ -55,6 +93,7 @@ export function extractSubagentsFromMessages(
       // Check tool result to determine status
       const result = findToolResult(block.id, messageIndex);
       const status = determineStatus(result);
+      const resultMetadata = extractResultMetadata(result);
 
       subagents.push({
         id,
@@ -63,6 +102,7 @@ export function extractSubagentsFromMessages(
         prompt,
         status,
         messageIndex,
+        ...resultMetadata,
       });
     });
   });

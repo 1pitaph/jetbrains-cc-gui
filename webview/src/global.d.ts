@@ -79,6 +79,11 @@ interface Window {
   historyLoadComplete?: () => void;
 
   /**
+   * Subagent sidechain history callback.
+   */
+  onSubagentHistoryLoaded?: (json: string) => void;
+
+  /**
    * Add user message to chat (used for external Quick Fix feature)
    * Immediately shows the user's message in the chat UI before AI response
    */
