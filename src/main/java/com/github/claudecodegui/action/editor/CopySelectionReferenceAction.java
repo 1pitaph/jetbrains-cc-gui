@@ -82,6 +82,11 @@ public class CopySelectionReferenceAction extends AnAction implements DumbAware 
 
     @Override
     public void update(@NotNull AnActionEvent e) {
+        if (e.getProject() == null) {
+            e.getPresentation().setEnabledAndVisible(false);
+            return;
+        }
+
         Editor editor = e.getData(CommonDataKeys.EDITOR);
         if (editor == null) {
             e.getPresentation().setEnabledAndVisible(false);

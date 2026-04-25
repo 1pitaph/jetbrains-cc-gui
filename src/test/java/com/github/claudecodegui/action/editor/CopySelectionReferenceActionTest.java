@@ -14,6 +14,7 @@ import com.intellij.openapi.actionSystem.TimerListener;
 import com.intellij.openapi.actionSystem.ex.AnActionListener;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.SelectionModel;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.fileTypes.FileTypes;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.testFramework.LightVirtualFile;
@@ -70,7 +71,7 @@ public class CopySelectionReferenceActionTest {
 
     @Test
     public void updateShowsActionForNonBlankSelectionOnly() {
-        AnActionEvent event = createEvent(createDataContext(createEditor("selected"), null));
+        AnActionEvent event = createEvent(createDataContext(createEditor("selected"), null, createProject()));
 
         action.update(event);
 
@@ -80,7 +81,7 @@ public class CopySelectionReferenceActionTest {
 
     @Test
     public void updateShowsActionForWhitespaceSelection() {
-        AnActionEvent event = createEvent(createDataContext(createEditor("   "), null));
+        AnActionEvent event = createEvent(createDataContext(createEditor("   "), null, createProject()));
 
         action.update(event);
 
@@ -90,7 +91,7 @@ public class CopySelectionReferenceActionTest {
 
     @Test
     public void updateHidesActionForEmptySelection() {
-        AnActionEvent event = createEvent(createDataContext(createEditor(""), null));
+        AnActionEvent event = createEvent(createDataContext(createEditor(""), null, createProject()));
 
         action.update(event);
 
@@ -100,7 +101,17 @@ public class CopySelectionReferenceActionTest {
 
     @Test
     public void updateHidesActionForNullEditor() {
-        AnActionEvent event = createEvent(createDataContext(null, null));
+        AnActionEvent event = createEvent(createDataContext(null, null, createProject()));
+
+        action.update(event);
+
+        Assert.assertFalse(event.getPresentation().isVisible());
+        Assert.assertFalse(event.getPresentation().isEnabled());
+    }
+
+    @Test
+    public void updateHidesActionForNullProject() {
+        AnActionEvent event = createEvent(createDataContext(createEditor("selected"), null));
 
         action.update(event);
 
@@ -128,6 +139,10 @@ public class CopySelectionReferenceActionTest {
     }
 
     private static DataContext createDataContext(Editor editor, VirtualFile virtualFile) {
+        return createDataContext(editor, virtualFile, null);
+    }
+
+    private static DataContext createDataContext(Editor editor, VirtualFile virtualFile, Project project) {
         return dataId -> {
             if (CommonDataKeys.EDITOR.getName().equals(dataId)) {
                 return editor;
@@ -135,8 +150,19 @@ public class CopySelectionReferenceActionTest {
             if (CommonDataKeys.VIRTUAL_FILE.getName().equals(dataId)) {
                 return virtualFile;
             }
+            if (CommonDataKeys.PROJECT.getName().equals(dataId)) {
+                return project;
+            }
             return null;
         };
+    }
+
+    private static Project createProject() {
+        return (Project) Proxy.newProxyInstance(
+                Project.class.getClassLoader(),
+                new Class[]{Project.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType(), proxy, args)
+        );
     }
 
     private static Editor createEditor(String selectedText) {
