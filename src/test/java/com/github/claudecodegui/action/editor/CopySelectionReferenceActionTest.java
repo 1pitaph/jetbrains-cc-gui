@@ -32,11 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class CopySelectionReferenceActionTest {
 
-    private final CopySelectionReferenceAction action = new CopySelectionReferenceAction(
-            new SelectionReferenceBuilder(),
-            "Copy AI Reference",
-            "Copy the selected code location as an AI reference"
-    );
+    private final CopySelectionReferenceAction action = new CopySelectionReferenceAction(new SelectionReferenceBuilder());
 
     @After
     public void tearDown() {
@@ -93,15 +89,21 @@ public class CopySelectionReferenceActionTest {
     }
 
     @Test
+    public void updateHidesActionForNullEditor() {
+        AnActionEvent event = createEvent(createDataContext(null, null));
+
+        action.update(event);
+
+        Assert.assertFalse(event.getPresentation().isVisible());
+        Assert.assertFalse(event.getPresentation().isEnabled());
+    }
+
+    @Test
     public void buildSelectionReferenceUsesVirtualFileWithoutProject() {
         VirtualFile virtualFile = createFile("D:\\Code\\demo\\Foo.java");
         Editor editor = createEditor("selected");
         RecordingSelectionReferenceBuilder builder = new RecordingSelectionReferenceBuilder();
-        CopySelectionReferenceAction testAction = new CopySelectionReferenceAction(
-                builder,
-                "Copy AI Reference",
-                "Copy the selected code location as an AI reference"
-        );
+        CopySelectionReferenceAction testAction = new CopySelectionReferenceAction(builder);
         AnActionEvent event = createEvent(createDataContext(editor, virtualFile));
 
         SelectionReferenceBuilder.Result result = testAction.buildSelectionReference(event);

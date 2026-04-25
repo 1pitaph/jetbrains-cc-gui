@@ -11,7 +11,6 @@ import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.SelectionModel;
-import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -71,7 +70,11 @@ public class SendSelectionToTerminalAction extends AnAction implements DumbAware
                 })
                 .finishOnUiThread(com.intellij.openapi.application.ModalityState.defaultModalityState(), selectionInfo -> {
                     if (!selectionInfo.isSuccess()) {
-                        showBuildFailure(project, selectionInfo.getMessageKey());
+                        SelectionReferenceFailureHandler.showBuildFailure(
+                                selectionInfo,
+                                message -> showInfo(project, message),
+                                message -> showError(project, message)
+                        );
                         return;
                     }
 
@@ -116,32 +119,9 @@ public class SendSelectionToTerminalAction extends AnAction implements DumbAware
      * Retrieves selected code information and formats it into the specified format.
      */
     private @NotNull SelectionReferenceBuilder.Result buildSelectionReference(@NotNull AnActionEvent e) {
-        Project project = e.getProject();
         Editor editor = e.getData(CommonDataKeys.EDITOR);
-        VirtualFile virtualFile = project == null ? null : getSelectedFile(project);
+        VirtualFile virtualFile = e.getData(CommonDataKeys.VIRTUAL_FILE);
         return selectionReferenceBuilder.build(editor, virtualFile);
-    }
-
-    private @Nullable VirtualFile getSelectedFile(@NotNull Project project) {
-        VirtualFile[] selectedFiles = FileEditorManager.getInstance(project).getSelectedFiles();
-        if (selectedFiles.length == 0) {
-            return null;
-        }
-        return selectedFiles[0];
-    }
-
-    private void showBuildFailure(@Nullable Project project, @Nullable String messageKey) {
-        if (messageKey == null) {
-            showError(project, ClaudeCodeGuiBundle.message("send.failed", "Unknown error"));
-            return;
-        }
-
-        String message = ClaudeCodeGuiBundle.message(messageKey);
-        if ("send.selectCodeFirst".equals(messageKey)) {
-            showInfo(project, message);
-        } else {
-            showError(project, message);
-        }
     }
 
     /**

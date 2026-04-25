@@ -22,6 +22,10 @@ import java.awt.datatransfer.StringSelection;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+/**
+ * Action that copies the current editor selection as an AI reference string.
+ * Uses the shared selection reference builder so clipboard output stays aligned with other editor actions.
+ */
 public class CopySelectionReferenceAction extends AnAction implements DumbAware {
 
     private static final Logger LOG = Logger.getInstance(CopySelectionReferenceAction.class);
@@ -31,8 +35,17 @@ public class CopySelectionReferenceAction extends AnAction implements DumbAware 
     private final SelectionReferenceBuilder selectionReferenceBuilder;
 
     public CopySelectionReferenceAction() {
+        // Temporary fallback literals for Task 2. Task 3 will replace these with localized bundle keys.
         this(
                 new SelectionReferenceBuilder(),
+                "Copy AI Reference",
+                "Copy the selected code location as an AI reference"
+        );
+    }
+
+    CopySelectionReferenceAction(@NotNull SelectionReferenceBuilder selectionReferenceBuilder) {
+        this(
+                selectionReferenceBuilder,
                 "Copy AI Reference",
                 "Copy the selected code location as an AI reference"
         );
@@ -88,7 +101,11 @@ public class CopySelectionReferenceAction extends AnAction implements DumbAware 
 
     void handleBuildResult(@Nullable Project project, @NotNull SelectionReferenceBuilder.Result result) {
         if (!result.isSuccess()) {
-            showBuildFailure(project, result.getMessageKey());
+            SelectionReferenceFailureHandler.showBuildFailure(
+                    result,
+                    message -> showInfo(project, message),
+                    message -> showError(project, message)
+            );
             return;
         }
 
@@ -108,22 +125,8 @@ public class CopySelectionReferenceAction extends AnAction implements DumbAware 
         clipboardWriter = CopySelectionReferenceAction::writeToClipboard;
     }
 
-    private static void writeToClipboard(@Nullable String content) {
-        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(content != null ? content : ""), null);
-    }
-
-    private void showBuildFailure(@Nullable Project project, @Nullable String messageKey) {
-        if (messageKey == null) {
-            showError(project, ClaudeCodeGuiBundle.message("send.failed", "Unknown error"));
-            return;
-        }
-
-        String message = ClaudeCodeGuiBundle.message(messageKey);
-        if ("send.selectCodeFirst".equals(messageKey)) {
-            showInfo(project, message);
-        } else {
-            showError(project, message);
-        }
+    private static void writeToClipboard(@NotNull String content) {
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(content), null);
     }
 
     private void showClipboardWriteFailure(@Nullable Project project, @NotNull String message) {
