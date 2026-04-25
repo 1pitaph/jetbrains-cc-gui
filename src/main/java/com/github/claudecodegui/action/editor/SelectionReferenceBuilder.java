@@ -2,7 +2,6 @@ package com.github.claudecodegui.action.editor;
 
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.LogicalPosition;
 import com.intellij.openapi.editor.SelectionModel;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
@@ -26,8 +25,7 @@ public class SelectionReferenceBuilder {
         int endOffset = selectionModel.getSelectionEnd();
         int startLine = document.getLineNumber(startOffset) + 1;
         int endLine = document.getLineNumber(endOffset) + 1;
-        LogicalPosition endPosition = editor.offsetToLogicalPosition(endOffset);
-        if (endLine > startLine && endPosition != null && endPosition.column == 0) {
+        if (endLine > startLine && editor.offsetToLogicalPosition(endOffset).column == 0) {
             endLine--;
         }
         return buildFromRawSelection(selectedText, file.getPath(), startLine, endLine);
