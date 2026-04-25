@@ -332,6 +332,16 @@
     "commit": {
       "title": "Commit AI",
       "description": "Configure AI-generated Git commit message behavior",
+      "providerModel": {
+        "label": "Commit Model Provider",
+        "modelLabel": "Commit Model",
+        "resetToDefault": "Reset",
+        "providerAvailable": "Available",
+        "providerUnavailable": "Unavailable",
+        "currentProviderAuto": "Currently using auto selection: {{provider}}",
+        "currentProviderManual": "Currently using the manually selected provider: {{provider}}",
+        "currentProviderUnavailable": "The selected provider is currently unavailable: {{provider}}"
+      },
       "prompt": {
         "label": "Additional Prompt",
         "placeholder": "Add your extra requirements here, e.g., generate commit in English, include issue number, etc...",
@@ -1122,7 +1132,6 @@
     "runCommand": "Run Command",
     "contextEngine": "Context Engine",
     "task": "Task",
-    "promptLabel": "Prompt",
     "readFile": "Read File",
     "editFile": "Edit File",
     "writeFile": "Write File",
