@@ -146,6 +146,7 @@ public class SelectionReferenceBuilderTest {
                 return document;
             }
             if ("offsetToLogicalPosition".equals(name)) {
+                // This test intentionally only models the end-column behavior.
                 return new LogicalPosition(0, endColumn);
             }
             if ("isDisposed".equals(name)) {
@@ -224,7 +225,7 @@ public class SelectionReferenceBuilderTest {
                 if (offset == endOffset) {
                     return endLineNumber;
                 }
-                return endLineNumber;
+                throw new AssertionError("Unexpected offset: " + offset);
             }
             if ("equals".equals(name)) {
                 return proxy == args[0];

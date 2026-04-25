@@ -20,9 +20,6 @@ public class SelectionReferenceBuilder {
 
         SelectionModel selectionModel = editor.getSelectionModel();
         Document document = editor.getDocument();
-        if (selectionModel == null || document == null) {
-            return Result.failure("send.cannotGetEditor");
-        }
 
         String selectedText = selectionModel.getSelectedText();
         int startOffset = selectionModel.getSelectionStart();
@@ -74,11 +71,11 @@ public class SelectionReferenceBuilder {
             return success;
         }
 
-        public String getReference() {
+        public @Nullable String getReference() {
             return reference;
         }
 
-        public String getMessageKey() {
+        public @Nullable String getMessageKey() {
             return messageKey;
         }
     }
