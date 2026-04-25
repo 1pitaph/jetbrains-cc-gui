@@ -36,11 +36,10 @@ public class CopySelectionReferenceAction extends AnAction implements DumbAware 
     private final SelectionReferenceBuilder selectionReferenceBuilder;
 
     public CopySelectionReferenceAction() {
-        // Temporary fallback literals for Task 2. Task 3 will replace these with localized bundle keys.
         this(
                 new SelectionReferenceBuilder(),
-                "Copy AI Reference",
-                "Copy the selected code location as an AI reference"
+                ClaudeCodeGuiBundle.message("action.copyAiReference.text"),
+                ClaudeCodeGuiBundle.message("action.copyAiReference.description")
         );
     }
 

@@ -8,7 +8,9 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class PluginActionRegistrationTest {
@@ -21,7 +23,24 @@ public class PluginActionRegistrationTest {
         Assert.assertTrue(groupIds.contains("EditorTabPopupMenu"));
     }
 
+    @Test
+    public void copySelectionReferenceActionAppearsInEditorPopupMenuAfterSendSelectionAction() throws Exception {
+        ActionRegistration action = getActionRegistration("ClaudeCodeGUI.CopySelectionReferenceAction");
+
+        Assert.assertEquals(
+                "com.github.claudecodegui.action.editor.CopySelectionReferenceAction",
+                action.actionClass
+        );
+        AddToGroupRegistration editorPopup = action.getAddToGroup("EditorPopupMenu");
+        Assert.assertEquals("after", editorPopup.anchor);
+        Assert.assertEquals("ClaudeCodeGUI.SendSelectionToTerminalAction", editorPopup.relativeToAction);
+    }
+
     private static Set<String> getActionGroupIds(String actionId) throws Exception {
+        return getActionRegistration(actionId).getGroupIds();
+    }
+
+    private static ActionRegistration getActionRegistration(String actionId) throws Exception {
         Document document = DocumentBuilderFactory.newInstance()
                 .newDocumentBuilder()
                 .parse(new File("src/main/resources/META-INF/plugin.xml"));
@@ -29,15 +48,58 @@ public class PluginActionRegistrationTest {
         for (int i = 0; i < actions.getLength(); i++) {
             Element action = (Element) actions.item(i);
             if (actionId.equals(action.getAttribute("id"))) {
-                Set<String> groupIds = new HashSet<>();
+                List<AddToGroupRegistration> addToGroupRegistrations = new ArrayList<>();
                 NodeList addToGroups = action.getElementsByTagName("add-to-group");
                 for (int j = 0; j < addToGroups.getLength(); j++) {
                     Element addToGroup = (Element) addToGroups.item(j);
-                    groupIds.add(addToGroup.getAttribute("group-id"));
+                    addToGroupRegistrations.add(new AddToGroupRegistration(
+                            addToGroup.getAttribute("group-id"),
+                            addToGroup.getAttribute("anchor"),
+                            addToGroup.getAttribute("relative-to-action")
+                    ));
                 }
-                return groupIds;
+                return new ActionRegistration(action.getAttribute("class"), addToGroupRegistrations);
             }
         }
         throw new AssertionError("Action not found: " + actionId);
+    }
+
+    private static final class ActionRegistration {
+        private final String actionClass;
+        private final List<AddToGroupRegistration> addToGroupRegistrations;
+
+        private ActionRegistration(String actionClass, List<AddToGroupRegistration> addToGroupRegistrations) {
+            this.actionClass = actionClass;
+            this.addToGroupRegistrations = addToGroupRegistrations;
+        }
+
+        private Set<String> getGroupIds() {
+            Set<String> groupIds = new HashSet<>();
+            for (AddToGroupRegistration registration : addToGroupRegistrations) {
+                groupIds.add(registration.groupId);
+            }
+            return groupIds;
+        }
+
+        private AddToGroupRegistration getAddToGroup(String groupId) {
+            for (AddToGroupRegistration registration : addToGroupRegistrations) {
+                if (groupId.equals(registration.groupId)) {
+                    return registration;
+                }
+            }
+            throw new AssertionError("Group registration not found: " + groupId);
+        }
+    }
+
+    private static final class AddToGroupRegistration {
+        private final String groupId;
+        private final String anchor;
+        private final String relativeToAction;
+
+        private AddToGroupRegistration(String groupId, String anchor, String relativeToAction) {
+            this.groupId = groupId;
+            this.anchor = anchor;
+            this.relativeToAction = relativeToAction;
+        }
     }
 }
