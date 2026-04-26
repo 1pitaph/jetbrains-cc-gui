@@ -68,6 +68,33 @@ public class SelectionReferenceBuilderTest {
     }
 
     @Test
+    public void blankSelectionSkipsDocumentLookup() {
+        SelectionModel selectionModel = (SelectionModel) Proxy.newProxyInstance(
+                SelectionModel.class.getClassLoader(),
+                new Class[]{SelectionModel.class},
+                new SelectionModelHandler("   ", SELECTION_START_OFFSET, SELECTION_END_OFFSET)
+        );
+        Editor editor = (Editor) Proxy.newProxyInstance(
+                Editor.class.getClassLoader(),
+                new Class[]{Editor.class},
+                (proxy, method, args) -> {
+                    if ("getSelectionModel".equals(method.getName())) {
+                        return selectionModel;
+                    }
+                    if ("getDocument".equals(method.getName())) {
+                        throw new AssertionError("Document should not be requested for blank selections");
+                    }
+                    return defaultValue(method.getReturnType());
+                }
+        );
+
+        SelectionReferenceBuilder.Result result = builder.build(editor, createFile("D:\\Code\\demo\\Foo.java"));
+
+        Assert.assertFalse(result.isSuccess());
+        Assert.assertEquals("send.selectCodeFirst", result.getMessageKey());
+    }
+
+    @Test
     public void blankPathFails() {
         SelectionReferenceBuilder.Result result = builder.buildFromRawSelection(
                 "selected",

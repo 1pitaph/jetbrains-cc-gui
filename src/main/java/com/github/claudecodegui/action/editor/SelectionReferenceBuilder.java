@@ -20,9 +20,12 @@ public class SelectionReferenceBuilder {
         }
 
         SelectionModel selectionModel = editor.getSelectionModel();
-        Document document = editor.getDocument();
-
         String selectedText = selectionModel.getSelectedText();
+        if (isBlank(selectedText)) {
+            return Result.failure("send.selectCodeFirst");
+        }
+
+        Document document = editor.getDocument();
         int startOffset = selectionModel.getSelectionStart();
         int endOffset = selectionModel.getSelectionEnd();
         int startLine = document.getLineNumber(startOffset) + 1;
@@ -34,10 +37,10 @@ public class SelectionReferenceBuilder {
     }
 
     @NotNull Result buildFromRawSelection(@Nullable String selectedText, @Nullable String absolutePath, int startLine, int endLine) {
-        if (selectedText == null || selectedText.trim().isEmpty()) {
+        if (isBlank(selectedText)) {
             return Result.failure("send.selectCodeFirst");
         }
-        if (absolutePath == null || absolutePath.trim().isEmpty()) {
+        if (isBlank(absolutePath)) {
             return Result.failure("send.cannotGetFilePath");
         }
 
@@ -46,6 +49,10 @@ public class SelectionReferenceBuilder {
                 ? "@" + normalizedPath + "#L" + startLine
                 : "@" + normalizedPath + "#L" + startLine + "-" + endLine;
         return Result.success(reference);
+    }
+
+    private static boolean isBlank(@Nullable String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     public static final class Result {

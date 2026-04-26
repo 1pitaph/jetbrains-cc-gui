@@ -82,26 +82,15 @@ public class CopySelectionReferenceAction extends AnAction implements DumbAware 
 
     @Override
     public void update(@NotNull AnActionEvent e) {
-        if (e.getProject() == null) {
-            e.getPresentation().setEnabledAndVisible(false);
-            return;
-        }
-
         Editor editor = e.getData(CommonDataKeys.EDITOR);
-        if (editor == null) {
-            e.getPresentation().setEnabledAndVisible(false);
-            return;
-        }
-
-        SelectionModel selectionModel = editor.getSelectionModel();
-        String selectedText = selectionModel.getSelectedText();
-        boolean hasSelection = selectedText != null && !selectedText.isEmpty();
-        e.getPresentation().setEnabledAndVisible(hasSelection);
+        e.getPresentation().setEnabledAndVisible(e.getProject() != null && hasSelection(editor));
     }
 
     @NotNull SelectionReferenceBuilder.Result buildSelectionReference(@NotNull AnActionEvent e) {
-        VirtualFile virtualFile = e.getData(CommonDataKeys.VIRTUAL_FILE);
-        return selectionReferenceBuilder.build(e.getData(CommonDataKeys.EDITOR), virtualFile);
+        return selectionReferenceBuilder.build(
+                e.getData(CommonDataKeys.EDITOR),
+                e.getData(CommonDataKeys.VIRTUAL_FILE)
+        );
     }
 
     void handleBuildResult(@Nullable Project project, @NotNull SelectionReferenceBuilder.Result result) {
@@ -116,7 +105,11 @@ public class CopySelectionReferenceAction extends AnAction implements DumbAware 
         }
 
         try {
-            clipboardWriter.accept(result.getReference());
+            String reference = Objects.requireNonNull(
+                    result.getReference(),
+                    "Successful result must contain a reference"
+            );
+            clipboardWriter.accept(reference);
         } catch (RuntimeException ex) {
             LOG.warn("Failed to write selection reference to clipboard", ex);
             showClipboardWriteFailure(project, ClaudeCodeGuiBundle.message("action.copyAiReference.copyFailed"));
@@ -135,41 +128,44 @@ public class CopySelectionReferenceAction extends AnAction implements DumbAware 
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(content), null);
     }
 
-    private void showClipboardWriteFailure(@Nullable Project project, @NotNull String message) {
-        if (project != null) {
-            ApplicationManager.getApplication().invokeLater(() ->
-                    com.intellij.openapi.ui.Messages.showErrorDialog(
-                            project,
-                            message,
-                            ClaudeCodeGuiBundle.message("dialog.error.title")
-                    )
-            );
+    private static boolean hasSelection(@Nullable Editor editor) {
+        if (editor == null) {
+            return false;
         }
+
+        SelectionModel selectionModel = editor.getSelectionModel();
+        String selectedText = selectionModel.getSelectedText();
+        return selectedText != null && !selectedText.isEmpty();
+    }
+
+    private void showClipboardWriteFailure(@Nullable Project project, @NotNull String message) {
+        showDialog(project, message, ClaudeCodeGuiBundle.message("dialog.error.title"), true);
     }
 
     private void showError(@Nullable Project project, @NotNull String message) {
         LOG.error(message);
-        if (project != null) {
-            ApplicationManager.getApplication().invokeLater(() ->
-                    com.intellij.openapi.ui.Messages.showErrorDialog(
-                            project,
-                            message,
-                            ClaudeCodeGuiBundle.message("dialog.error.title")
-                    )
-            );
-        }
+        showDialog(project, message, ClaudeCodeGuiBundle.message("dialog.error.title"), true);
     }
 
     private void showInfo(@Nullable Project project, @NotNull String message) {
         LOG.info(message);
-        if (project != null) {
-            ApplicationManager.getApplication().invokeLater(() ->
-                    com.intellij.openapi.ui.Messages.showInfoMessage(
-                            project,
-                            message,
-                            ClaudeCodeGuiBundle.message("dialog.info.title")
-                    )
-            );
+        showDialog(project, message, ClaudeCodeGuiBundle.message("dialog.info.title"), false);
+    }
+
+    private void showDialog(@Nullable Project project,
+                            @NotNull String message,
+                            @NotNull String title,
+                            boolean error) {
+        if (project == null) {
+            return;
         }
+
+        ApplicationManager.getApplication().invokeLater(() -> {
+            if (error) {
+                com.intellij.openapi.ui.Messages.showErrorDialog(project, message, title);
+                return;
+            }
+            com.intellij.openapi.ui.Messages.showInfoMessage(project, message, title);
+        });
     }
 }

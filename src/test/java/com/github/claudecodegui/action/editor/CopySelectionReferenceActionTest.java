@@ -1,9 +1,9 @@
 package com.github.claudecodegui.action.editor;
 
+import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionPopupMenu;
 import com.intellij.openapi.actionSystem.ActionToolbar;
-import com.intellij.openapi.actionSystem.ActionGroup;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -134,6 +134,7 @@ public class CopySelectionReferenceActionTest {
         Assert.assertSame(virtualFile, builder.file);
     }
 
+    @SuppressWarnings("removal")
     private static AnActionEvent createEvent(DataContext dataContext) {
         return new AnActionEvent(null, dataContext, "TestPlace", new Presentation(), new TestActionManager(), 0);
     }
@@ -255,6 +256,7 @@ public class CopySelectionReferenceActionTest {
         }
     }
 
+    @SuppressWarnings("removal")
     private static final class TestActionManager extends ActionManager {
         @Override
         public ActionPopupMenu createActionPopupMenu(String place, ActionGroup group) {
@@ -344,4 +346,5 @@ public class CopySelectionReferenceActionTest {
             return null;
         }
     }
+
 }
