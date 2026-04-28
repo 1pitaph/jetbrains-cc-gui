@@ -223,7 +223,6 @@ const TaskExecutionBlock = memo(function TaskExecutionBlock({ name, input, resul
 
         <div className="task-header-right">
           <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
-          <span className={`task-chevron codicon ${expanded ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} />
         </div>
       </div>
 

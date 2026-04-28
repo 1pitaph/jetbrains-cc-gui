@@ -59,6 +59,25 @@ describe('TaskExecutionBlock polling', () => {
     expect(setIntervalSpy).not.toHaveBeenCalled();
   });
 
+  it('keeps the task header expandable without rendering a chevron icon', () => {
+    const { container } = render(
+      <TaskExecutionBlock
+        name="Task"
+        toolId="task-1"
+        input={{
+          description: 'Inspect render path',
+          subagent_type: 'Explore',
+        }}
+      />,
+    );
+
+    expect(container.querySelector('.task-chevron')).toBeNull();
+
+    fireEvent.click(container.querySelector('.task-header') as HTMLElement);
+
+    expect(container.querySelector('.task-details')).toBeTruthy();
+  });
+
   it('stops polling once a tool result marks the agent task completed', () => {
     const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
 
