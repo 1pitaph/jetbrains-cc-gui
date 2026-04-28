@@ -336,6 +336,13 @@ public class ClaudeMessageHandler implements MessageCallback {
             //
             // DO NOT add !isStreaming check here - it was previously introduced in commit 03640408
             // and caused incorrect token display in streaming mode (see commit history for details).
+            //
+            // NOTE (v0.4.1+): In streaming text-only turns the ai-bridge layer suppresses [MESSAGE]
+            // emission (stream-event-processor.shouldOutputMessage returns false when no tool_use
+            // blocks are present), so this branch is NOT reached for those turns. In that case
+            // [USAGE] tags emitted by emitUsageTag() in persistent-query-service.executeTurn become
+            // the only authoritative source — handled by handleUsage(). Do not move the [USAGE]
+            // emission behind shouldOutputMessage without re-routing this final-usage update.
             if (mergedRaw.has("message") && mergedRaw.get("message").isJsonObject()) {
                 JsonObject messageObj = mergedRaw.getAsJsonObject("message");
                 if (messageObj.has("usage") && messageObj.get("usage").isJsonObject()) {
