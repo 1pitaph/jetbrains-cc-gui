@@ -35,6 +35,7 @@ import com.intellij.ui.jcef.JBCefBrowser;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Chat window instance. Coordinates UI components, session management,
@@ -64,7 +65,7 @@ public class ClaudeChatWindow {
     private volatile boolean initialized = false;
     private volatile boolean frontendReady = false;
     private volatile boolean slashCommandsFetched = false;
-    private volatile boolean restoredHistoryLoadStarted = false;
+    private final AtomicBoolean restoredHistoryLoadStarted = new AtomicBoolean(false);
     private volatile int fetchedSlashCommandsCount = 0;
 
     private HandlerContext handlerContext;
@@ -383,10 +384,9 @@ public class ClaudeChatWindow {
         if (!TabSessionRestorePolicy.shouldLoadHistory(savedState) || session == null) {
             return;
         }
-        if (restoredHistoryLoadStarted) {
+        if (!restoredHistoryLoadStarted.compareAndSet(false, true)) {
             return;
         }
-        restoredHistoryLoadStarted = true;
 
         session.loadFromServer().thenRun(() -> ApplicationManager.getApplication().invokeLater(() -> {
             if (!disposed) {

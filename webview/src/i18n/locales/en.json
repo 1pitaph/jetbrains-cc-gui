@@ -602,6 +602,7 @@
         "deepseek": "DeepSeek",
         "minimax": "MiniMax",
         "xiaomi": "Xiaomi MiMo",
+        "xiaomiPlan": "Xiaomi MiMo Plan",
         "qwen": "Alibaba Qwen",
         "openrouter": "OpenRouter"
       }
@@ -1186,6 +1187,24 @@
     "inProgress": "In Progress {{completed}}/{{total}} tasks",
     "allCompleted": "All Completed {{completed}}/{{total}} tasks",
     "stopped": "Stopped"
+  },
+  "subagent": {
+    "process": {
+      "title": "Agent process",
+      "thought": "Thought",
+      "filesRead_one": "Read {{count}} file",
+      "filesRead_other": "Read {{count}} files",
+      "otherTools": "Other tools",
+      "result": "Result",
+      "showFullOutput": "Show full output",
+      "loading": "Loading Agent process…",
+      "unavailable": "Process log is unavailable until this session has an id.",
+      "reportGenerated": "Structured analysis report generated",
+      "unitMs": "ms",
+      "unitS": "s",
+      "unitTools": "tools",
+      "unitTokens": "tokens"
+    }
   },
   "statusPanel": {
     "todoTab": "Plan",

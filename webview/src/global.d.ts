@@ -291,6 +291,11 @@ interface Window {
   updateWorkingDirectory?: (json: string) => void;
 
   /**
+   * Update linkify/navigation capabilities used by Markdown rendering.
+   */
+  updateLinkifyCapabilities?: (json: string) => void;
+
+  /**
    * Show success message
    */
   showSuccess?: (message: string) => void;

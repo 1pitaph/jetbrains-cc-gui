@@ -164,9 +164,14 @@ Footer 包含：
             // 3. Call the AI SDK
             callAIService(fullPrompt, callback);
 
+        } catch (IOException e) {
+            LOG.warn("AI service call failed", e);
+            String message = e.getMessage();
+            callback.onError("AI service call failed: " + (message != null ? message : e.getClass().getSimpleName()));
         } catch (Exception e) {
             LOG.error("Failed to generate commit message", e);
-            callback.onError(e.getMessage());
+            String message = e.getMessage();
+            callback.onError(message != null ? message : e.getClass().getSimpleName());
         }
     }
 

@@ -120,16 +120,19 @@ export function shouldOutputMessage(msg, turnState) {
     return true;
   }
 
-  // For assistant messages:
-  // - In streaming mode: output if has tool_use OR always output for conservative sync
-  //   (needed to prevent content loss - Java layer's handleAssistantMessage performs
-  //   conservative sync which catches any missed deltas)
-  // - In non-streaming mode: always output
+  // Non-streaming mode: always output
   if (!turnState.streamingEnabled) {
     return true;
   }
 
-  // Always output assistant messages for conservative sync (prevents delta loss)
-  // The Java layer uses the full assistant JSON to fill any gaps in streaming content
-  return true;
+  // Streaming mode: only emit [MESSAGE] when the snapshot carries tool_use blocks.
+  // Pure text/thinking content is delivered via [CONTENT_DELTA] / [THINKING_DELTA]
+  // (processStreamEvent for live deltas, processMessageContent for tail-fill).
+  // Mirrors the legacy message-sender.js shouldOutput rule. Emitting redundant
+  // [MESSAGE] for text-only assistants forces the Java ReplayDeduplicator to
+  // reconcile the same content twice and was the upstream cause of duplicated
+  // markdown blocks reported on v0.4.x streaming.
+  const content = msg?.message?.content;
+  if (!Array.isArray(content)) return false;
+  return content.some((block) => block?.type === 'tool_use');
 }

@@ -2,6 +2,7 @@ package com.github.claudecodegui.handler;
 
 import com.github.claudecodegui.handler.core.HandlerContext;
 
+import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
 import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.action.SendShortcutSync;
 import com.github.claudecodegui.provider.claude.ClaudeHistoryReader;
@@ -336,7 +337,8 @@ public class ProjectConfigHandler {
         } catch (Exception e) {
             LOG.error("[ProjectConfigHandler] Failed to get prompt enhancer config: " + e.getMessage(), e);
             ApplicationManager.getApplication().invokeLater(() ->
-                context.callJavaScript("window.showError", context.escapeJs("获取增强提示词配置失败: " + e.getMessage())));
+                context.callJavaScript("window.showError", context.escapeJs(
+                    ClaudeCodeGuiBundle.message("projectConfig.promptEnhancer.getFailed", e.getMessage()))));
         }
     }
 
@@ -364,7 +366,8 @@ public class ProjectConfigHandler {
         } catch (Exception e) {
             LOG.error("[ProjectConfigHandler] Failed to set prompt enhancer config: " + e.getMessage(), e);
             ApplicationManager.getApplication().invokeLater(() ->
-                context.callJavaScript("window.showError", context.escapeJs("保存增强提示词配置失败: " + e.getMessage())));
+                context.callJavaScript("window.showError", context.escapeJs(
+                    ClaudeCodeGuiBundle.message("projectConfig.promptEnhancer.saveFailed", e.getMessage()))));
         }
     }
 
@@ -376,7 +379,8 @@ public class ProjectConfigHandler {
         } catch (Exception e) {
             LOG.error("[ProjectConfigHandler] Failed to get commit AI config: " + e.getMessage(), e);
             ApplicationManager.getApplication().invokeLater(() ->
-                context.callJavaScript("window.showError", context.escapeJs("获取 Commit AI 配置失败: " + e.getMessage())));
+                context.callJavaScript("window.showError", context.escapeJs(
+                    ClaudeCodeGuiBundle.message("projectConfig.commitAi.getFailed", e.getMessage()))));
         }
     }
 
@@ -404,7 +408,8 @@ public class ProjectConfigHandler {
         } catch (Exception e) {
             LOG.error("[ProjectConfigHandler] Failed to set commit AI config: " + e.getMessage(), e);
             ApplicationManager.getApplication().invokeLater(() ->
-                context.callJavaScript("window.showError", context.escapeJs("保存 Commit AI 配置失败: " + e.getMessage())));
+                context.callJavaScript("window.showError", context.escapeJs(
+                    ClaudeCodeGuiBundle.message("projectConfig.commitAi.saveFailed", e.getMessage()))));
         }
     }
 

@@ -261,6 +261,16 @@
     "commit": {
       "title": "Commit AI",
       "description": "Configure AI-generated Git commit message behavior",
+      "providerModel": {
+        "label": "Proveedor del modelo de commit",
+        "modelLabel": "Modelo de commit",
+        "resetToDefault": "Restablecer",
+        "providerAvailable": "Disponible",
+        "providerUnavailable": "No disponible",
+        "currentProviderAuto": "Actualmente usando selección automática: {{provider}}",
+        "currentProviderManual": "Actualmente usando el proveedor seleccionado manualmente: {{provider}}",
+        "currentProviderUnavailable": "El proveedor seleccionado no está disponible actualmente: {{provider}}"
+      },
       "prompt": {
         "label": "Additional Prompt",
         "placeholder": "Add your extra requirements here, e.g., generate commit in English, include issue number, etc...",
@@ -499,6 +509,7 @@
         "deepseek": "DeepSeek",
         "minimax": "MiniMax",
         "xiaomi": "Xiaomi MiMo",
+        "xiaomiPlan": "Xiaomi MiMo Plan",
         "qwen": "Alibaba Qwen",
         "openrouter": "OpenRouter"
       }
@@ -740,6 +751,12 @@
     "clickToCopy": "Haz clic para copiar",
     "switch": "Cambiar",
     "switchProvider": "Cambiar proveedor",
+    "runtimeProvider": {
+      "title": "Cambiar el proveedor actual",
+      "loading": "Cargando proveedores...",
+      "empty": "No hay proveedores disponibles",
+      "switched": "Cambiado a {{provider}}"
+    },
     "link": "Enlace"
   },
   "markdown": {

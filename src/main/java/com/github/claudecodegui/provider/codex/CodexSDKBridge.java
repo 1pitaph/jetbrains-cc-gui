@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
+import com.github.claudecodegui.handler.history.HistoryMessageInjector;
 import com.github.claudecodegui.session.ClaudeSession;
 import com.github.claudecodegui.settings.CodemossSettingsService;
 import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
@@ -483,176 +484,17 @@ public class CodexSDKBridge extends BaseSDKBridge {
      * Get persisted Codex session history messages.
      */
     public List<JsonObject> getSessionMessages(String sessionId, String cwd) {
-        List<JsonObject> messages = new ArrayList<>();
         try {
             String rawMessages = historyReader.getSessionMessagesAsJson(sessionId);
             JsonArray historyItems = gson.fromJson(rawMessages, JsonArray.class);
             if (historyItems == null) {
-                return messages;
+                return List.of();
             }
-
-            for (JsonElement item : historyItems) {
-                if (!item.isJsonObject()) {
-                    continue;
-                }
-                JsonObject normalized = normalizeHistoryItem(item.getAsJsonObject());
-                if (normalized != null) {
-                    messages.add(normalized);
-                }
-            }
+            return HistoryMessageInjector.convertCodexMessagesToFrontendBatch(historyItems);
         } catch (Exception e) {
             LOG.warn("Failed to load Codex session history: " + e.getMessage(), e);
+            return List.of();
         }
-        return messages;
-    }
-
-    private JsonObject normalizeHistoryItem(JsonObject item) {
-        String type = item.has("type") && !item.get("type").isJsonNull()
-                ? item.get("type").getAsString() : null;
-        JsonObject payload = item.has("payload") && item.get("payload").isJsonObject()
-                ? item.getAsJsonObject("payload") : null;
-        if (payload == null) {
-            return null;
-        }
-
-        if ("event_msg".equals(type)) {
-            return normalizeEventMessage(payload, item);
-        }
-        if ("response_item".equals(type)) {
-            return normalizeResponseItem(payload, item);
-        }
-        return null;
-    }
-
-    private JsonObject normalizeEventMessage(JsonObject payload, JsonObject rawItem) {
-        if (!payload.has("type") || !"user_message".equals(payload.get("type").getAsString())) {
-            return null;
-        }
-        if (!payload.has("message") || payload.get("message").isJsonNull()) {
-            return null;
-        }
-        JsonObject message = new JsonObject();
-        message.addProperty("type", "user");
-        message.addProperty("content", payload.get("message").getAsString());
-        message.add("rawCodex", rawItem);
-        return message;
-    }
-
-    private JsonObject normalizeResponseItem(JsonObject payload, JsonObject rawItem) {
-        if (!payload.has("type") || payload.get("type").isJsonNull()) {
-            return null;
-        }
-        String payloadType = payload.get("type").getAsString();
-        if ("message".equals(payloadType)) {
-            return normalizeAssistantMessage(payload, rawItem);
-        }
-        if ("function_call".equals(payloadType)) {
-            return normalizeFunctionCall(payload, rawItem);
-        }
-        if ("function_call_output".equals(payloadType)) {
-            return normalizeFunctionCallOutput(payload, rawItem);
-        }
-        return null;
-    }
-
-    private JsonObject normalizeAssistantMessage(JsonObject payload, JsonObject rawItem) {
-        JsonObject message = new JsonObject();
-        message.addProperty("type", "assistant");
-        message.addProperty("content", extractCodexHistoryAssistantText(payload));
-        message.add("rawCodex", rawItem);
-        return message;
-    }
-
-    private String extractCodexHistoryAssistantText(JsonObject payload) {
-        if (!payload.has("content") || payload.get("content").isJsonNull()) {
-            return "";
-        }
-        JsonElement content = payload.get("content");
-        if (content.isJsonPrimitive()) {
-            return content.getAsString();
-        }
-        if (!content.isJsonArray()) {
-            return "";
-        }
-
-        StringBuilder text = new StringBuilder();
-        for (JsonElement element : content.getAsJsonArray()) {
-            if (!element.isJsonObject()) {
-                continue;
-            }
-            JsonObject block = element.getAsJsonObject();
-            if (!block.has("type") || block.get("type").isJsonNull()) {
-                continue;
-            }
-            String blockType = block.get("type").getAsString();
-            if (("text".equals(blockType) || "output_text".equals(blockType))
-                    && block.has("text") && !block.get("text").isJsonNull()) {
-                if (text.length() > 0) {
-                    text.append("\n");
-                }
-                text.append(block.get("text").getAsString());
-            }
-        }
-        return text.toString();
-    }
-
-    private JsonObject normalizeFunctionCall(JsonObject payload, JsonObject rawItem) {
-        JsonObject toolUse = new JsonObject();
-        toolUse.addProperty("type", "tool_use");
-        if (payload.has("call_id") && !payload.get("call_id").isJsonNull()) {
-            toolUse.addProperty("id", payload.get("call_id").getAsString());
-        }
-        if (payload.has("name") && !payload.get("name").isJsonNull()) {
-            toolUse.addProperty("name", payload.get("name").getAsString());
-        }
-        toolUse.add("input", parseArguments(payload));
-
-        JsonObject message = new JsonObject();
-        message.addProperty("type", "assistant");
-        JsonArray content = new JsonArray();
-        content.add(toolUse);
-        message.add("content", content);
-        message.add("rawCodex", rawItem);
-        return message;
-    }
-
-    private JsonObject normalizeFunctionCallOutput(JsonObject payload, JsonObject rawItem) {
-        JsonObject toolResult = new JsonObject();
-        toolResult.addProperty("type", "tool_result");
-        if (payload.has("call_id") && !payload.get("call_id").isJsonNull()) {
-            toolResult.addProperty("tool_use_id", payload.get("call_id").getAsString());
-        }
-        if (payload.has("output") && !payload.get("output").isJsonNull()) {
-            toolResult.addProperty("content", payload.get("output").getAsString());
-        }
-
-        JsonObject message = new JsonObject();
-        message.addProperty("type", "user");
-        JsonArray content = new JsonArray();
-        content.add(toolResult);
-        message.add("content", content);
-        message.add("rawCodex", rawItem);
-        return message;
-    }
-
-    private JsonObject parseArguments(JsonObject payload) {
-        if (!payload.has("arguments") || payload.get("arguments").isJsonNull()) {
-            return new JsonObject();
-        }
-        JsonElement arguments = payload.get("arguments");
-        if (arguments.isJsonObject()) {
-            return arguments.getAsJsonObject();
-        }
-        if (arguments.isJsonPrimitive()) {
-            try {
-                JsonElement parsed = gson.fromJson(arguments.getAsString(), JsonElement.class);
-                if (parsed != null && parsed.isJsonObject()) {
-                    return parsed.getAsJsonObject();
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        return new JsonObject();
     }
 
     /**

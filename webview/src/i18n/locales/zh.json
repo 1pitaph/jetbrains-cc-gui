@@ -607,6 +607,7 @@
         "deepseek": "DeepSeek",
         "minimax": "MiniMax",
         "xiaomi": "Xiaomi MiMo",
+        "xiaomiPlan": "Xiaomi MiMo Plan",
         "qwen": "阿里千问",
         "openrouter": "OpenRouter"
       }
@@ -1191,6 +1192,24 @@
     "inProgress": "进行中 {{completed}}/{{total}} 个任务",
     "allCompleted": "已完成 {{completed}}/{{total}} 个任务",
     "stopped": "已停止"
+  },
+  "subagent": {
+    "process": {
+      "title": "Agent 进程",
+      "thought": "思考",
+      "filesRead_one": "读取 {{count}} 个文件",
+      "filesRead_other": "读取 {{count}} 个文件",
+      "otherTools": "其他工具",
+      "result": "结果",
+      "showFullOutput": "查看完整输出",
+      "loading": "正在加载 Agent 进程…",
+      "unavailable": "本次会话未生成进程日志（需要会话 ID）。",
+      "reportGenerated": "已生成结构化分析报告",
+      "unitMs": "毫秒",
+      "unitS": "秒",
+      "unitTools": "个工具",
+      "unitTokens": "tokens"
+    }
   },
   "statusPanel": {
     "todoTab": "计划",

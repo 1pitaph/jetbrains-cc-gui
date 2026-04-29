@@ -261,6 +261,16 @@
     "commit": {
       "title": "Commit AI",
       "description": "Configure AI-generated Git commit message behavior",
+      "providerModel": {
+        "label": "コミットモデルプロバイダー",
+        "modelLabel": "コミットモデル",
+        "resetToDefault": "リセット",
+        "providerAvailable": "利用可能",
+        "providerUnavailable": "利用不可",
+        "currentProviderAuto": "現在自動選択を使用中：{{provider}}",
+        "currentProviderManual": "現在手動選択したプロバイダーを使用中：{{provider}}",
+        "currentProviderUnavailable": "選択したプロバイダーは現在利用できません：{{provider}}"
+      },
       "prompt": {
         "label": "Additional Prompt",
         "placeholder": "Add your extra requirements here, e.g., generate commit in English, include issue number, etc...",
@@ -504,6 +514,7 @@
         "deepseek": "DeepSeek",
         "minimax": "MiniMax",
         "xiaomi": "Xiaomi MiMo",
+        "xiaomiPlan": "Xiaomi MiMo Plan",
         "qwen": "Alibaba Qwen",
         "openrouter": "OpenRouter"
       }
@@ -745,6 +756,12 @@
     "clickToCopy": "クリックしてコピー",
     "switch": "切り替え",
     "switchProvider": "プロバイダーを切り替え",
+    "runtimeProvider": {
+      "title": "現在のプロバイダーを切り替え",
+      "loading": "プロバイダーを読み込み中...",
+      "empty": "利用可能なプロバイダーがありません",
+      "switched": "{{provider}} に切り替えました"
+    },
     "link": "リンク"
   },
   "markdown": {

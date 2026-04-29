@@ -261,6 +261,16 @@
     "commit": {
       "title": "Commit AI",
       "description": "Configure AI-generated Git commit message behavior",
+      "providerModel": {
+        "label": "Commit 生成 Provider",
+        "modelLabel": "Commit 生成模型",
+        "resetToDefault": "恢復預設",
+        "providerAvailable": "可用",
+        "providerUnavailable": "當前不可用",
+        "currentProviderAuto": "當前使用自動選擇：{{provider}}",
+        "currentProviderManual": "當前使用手動選擇的 provider：{{provider}}",
+        "currentProviderUnavailable": "當前所選 provider 不可用：{{provider}}"
+      },
       "prompt": {
         "label": "Additional Prompt",
         "placeholder": "Add your extra requirements here, e.g., generate commit in English, include issue number, etc...",
@@ -504,6 +514,7 @@
         "deepseek": "DeepSeek",
         "minimax": "MiniMax",
         "xiaomi": "Xiaomi MiMo",
+        "xiaomiPlan": "Xiaomi MiMo Plan",
         "qwen": "阿里千問",
         "openrouter": "OpenRouter"
       }
@@ -745,6 +756,12 @@
     "clickToCopy": "點選複製",
     "switch": "切換",
     "switchProvider": "切換供應商",
+    "runtimeProvider": {
+      "title": "切換當前供應商",
+      "loading": "正在載入供應商...",
+      "empty": "暫無可用供應商",
+      "switched": "已切換到 {{provider}}"
+    },
     "link": "連結"
   },
   "markdown": {

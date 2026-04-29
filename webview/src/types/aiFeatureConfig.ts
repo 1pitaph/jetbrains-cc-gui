@@ -1,6 +1,11 @@
 export type AiFeatureProvider = 'claude' | 'codex';
 export type AiFeatureResolutionSource = 'manual' | 'auto' | 'unavailable';
 
+export const DEFAULT_AI_FEATURE_MODELS = {
+  claude: 'claude-sonnet-4-6',
+  codex: 'gpt-5.5',
+} as const;
+
 export interface AiFeatureConfig {
   provider: AiFeatureProvider | null;
   effectiveProvider: AiFeatureProvider | null;
@@ -24,8 +29,8 @@ export const DEFAULT_COMMIT_AI_CONFIG: CommitAiConfig = {
   effectiveProvider: 'codex',
   resolutionSource: 'auto',
   models: {
-    claude: 'claude-sonnet-4-6',
-    codex: 'gpt-5.5',
+    claude: DEFAULT_AI_FEATURE_MODELS.claude,
+    codex: DEFAULT_AI_FEATURE_MODELS.codex,
   },
   availability: {
     claude: false,
