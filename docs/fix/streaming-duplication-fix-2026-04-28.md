@@ -1,9 +1,24 @@
 # 流式输出重复渲染问题分析与修复记录
 
-**日期**: 2026-04-28  
+**初版日期**: 2026-04-28  
+**修正日期**: 2026-04-29  
 **版本**: v0.4.1  
-**状态**: 阶段 1 已完成，待观察用户反馈  
-**Commit**: ddaa590
+**状态**: 阶段 1 已完成且**对 daemon mode 用户生效**，但用户反馈"重复闪烁"未好转——2026-04-29 复盘后发现真正根因在前端 `reconcile race`，原阶段 2/3 方向需重写  
+**初版 Commit**: ddaa590
+
+---
+
+## ⚠️ 2026-04-29 复盘修正（必读）
+
+阶段 1 上线后约 1 天，用户继续反馈"内容重复闪烁"且"并非个例"。重新做了三路深度排查（ai-bridge / Java / 前端），结论是 **原文档对场景 B 的预案错了**。要点：
+
+1. **阶段 1 修复落点正确**：v0.4.x 默认走 **daemon mode**（`ClaudeSDKBridge.java:365-371` daemon 优先于 channel-manager），daemon → `daemon.js` → `sendMessagePersistent` → `persistent-query-service.js` → `stream-event-processor.js`。所以 `shouldOutputMessage` 修复对默认路径用户生效。channel-manager 仅作 fallback，且 `message-sender.js:171-176` 早就有等价的 `shouldOutput` 保护，本来就没回归。
+2. **阶段 2（修 Java `ReplayDeduplicator.endsWith`）的方向是错的**：阶段 1 后纯文本 turn 中 `replayContent==null`，`ReplayDeduplicator.java:75-78` 直接 inactive 返回，**根本不进 endsWith 分支**。修这条对当前用户反馈的重复闪烁完全没用。
+3. **真正的根因被遗漏，且阶段 1 修复反而暴露了**它：
+   - 前端 `useStreamingMessages` 的 `streamingTextSegmentsRef`（onContentDelta 累加）与 `patchAssistantForStreaming` 重建出的 `raw.message.content` blocks **是两个独立内容源**。原本被 `[MESSAGE]` 全量 snapshot 遮蔽，阶段 1 关闭这条通道后，**只剩 `[USAGE]` 等次要 backend 推送触发 `updateMessages`**，rebuild 出的 raw 长度短于 segment refs 已累积的长度。
+   - `messageSync.ts` 的 `preserveStreamingAssistantContent` **只保护顶层 `.content` string，不保护 `.raw.message.content` blocks**——而 `MarkdownBlock` 渲染 blocks，于是用户看到 `ABCDE → ABC（短暂）→ ABCDEF`，正是"重复闪烁"。
+   - 还有第二条独立的渲染通道：`messageCallbacks.ts:402-425` 的 rAF 节流（~16ms）与 `streamingCallbacks.ts:200-212` 的 50ms `setTimeout` 节流**完全不同步**，导致 backend snapshot 偶发"插队"在两个 delta-driven setState 之间，引发同样的 `ABCDE → ABC → ABCDEF` 时序倒灌。
+4. **以下章节已据此修正**：根因排序表（L55+）、阶段 2 / 阶段 3（修复方案）、决策点（场景 B/C）。原阶段 2 内容降级保留为附录"已废弃方案"。
 
 ---
 
@@ -52,6 +67,8 @@
 
 ### 根因排序（按怀疑度）
 
+#### 初版（2026-04-28，部分错误）
+
 | 排名 | 层 | 根因 | 严重度 |
 |---|---|---|---|
 | 1 | ai-bridge | `shouldOutputMessage` 永远返回 true（**回归**） | P0 |
@@ -59,11 +76,30 @@
 | 3 | 前端 | 200 字符重叠扫描上限 + 硬拼接兜底 | P2 |
 | 4 | 前端 | 同 turn 多 assistant raw blocks 无去重 concat | P2 |
 
+#### 复盘版（2026-04-29，以此为准）
+
+| 排名 | 层 | 根因 | 严重度 | 复盘备注 |
+|---|---|---|---|---|
+| 1 | ai-bridge | `shouldOutputMessage` 永远返回 true（**回归**） | P0 | ✅ 阶段 1 已修，对 daemon mode 默认路径用户生效 |
+| 2 | 前端 | `preserveStreamingAssistantContent` 仅保护 `.content`，不保护 `.raw.message.content` blocks；`[USAGE]` 触发的 `updateMessages` rebuild 出比 segment 短的 raw → React 在 `ABCDE↔ABC` 之间反复切换 | **P0** | **阶段 1 修复反而暴露此 race**；当前最高怀疑根因 |
+| 3 | 前端 | tool_use turn 中 streaming buffer 与 `updateMessages` snapshot 双通道并发（与阶段 1 修复无关，固有问题） | P1 | tool_use turn 必发 [MESSAGE]，[CONTENT_DELTA] 也走过，前端两源并存 |
+| 4 | 前端 | rAF 1 帧节流（messageCallbacks）与 50ms `setTimeout` 节流（onContentDelta）完全不同步，引发时序倒灌 | P1 | `ABCDE → ABC（rAF 插队）→ ABCDEF` 间歇性闪烁 |
+| 5 | Java | `MessageMerger.preferMoreCompleteContent`（`MessageMerger.java:316-333`）取最长无内容关系校验 | P2 | 仅 tool_use turn 触发；放大根因 #3 |
+| 6 | Java | ~~`ReplayDeduplicator.endsWith` 兜底无条件消费 delta~~ | ~~P1~~ **P3** | 阶段 1 后 `replayContent==null` 时 `ReplayDeduplicator.java:75-78` 直接 inactive 返回，**根本不进 endsWith**——修这条对当前问题无效 |
+| 7 | 前端 | 200 字符重叠扫描上限 + 硬拼接兜底（`useStreamingMessages.ts`） | P2 | 文档原 P2，仍成立 |
+| 8 | 前端 | 同 turn 多 assistant raw blocks 无去重 concat（`messageUtils.ts:849`） | P2 | 文档原 P2，仍成立 |
+
 ### 历史回归点
 
 - **旧路径**（正确）：`message-sender.js:171-174` 流式 + 无 tool_use 时 `shouldOutput=false`
 - **新路径**（回归）：`stream-event-processor.js:132-134` 永远 `return true`，注释写"Always output for conservative sync"
 - **回归原因**：持久化通道（daemon 模式）引入时，误认为"保守同步"需要始终发 [MESSAGE]，但实际上 `processMessageContent` 的 tail-fill 机制已足够
+
+### 路径分布（2026-04-29 复盘补充）
+
+- **默认路径**（v0.4.x）：`DaemonBridge` → `daemon.js` → `sendMessagePersistent` → `persistent-query-service.js` → `stream-event-processor.js`。**阶段 1 修复对此路径生效**。
+- **回退路径**（per-process，仅在 daemon 启动失败时用）：`channel-manager.js` → `claude-channel.js` → `message-service.js` → `message-sender.js`。`shouldOutput` 保护早就存在，无回归。
+- **结论**：阶段 1 修复并非"无效"，但它解决的不是用户当前反馈的根因。真正根因已下移到前端层（见复盘版根因排序 #2~#4）。
 
 ---
 
@@ -93,51 +129,74 @@
 
 ---
 
-### 🟡 阶段 2（P1，待定）— 修 Java 后端 endsWith 误吞
+### 🟡 阶段 2（P0，**新方向**，2026-04-29 复盘后重写）— 修前端 segment vs raw blocks reconcile race
 
-**目标**：修复 `ReplayDeduplicator` 的 `endsWith` 兜底分支误吞 novel delta
+**目标**：消除"用户看到 `ABCDE → ABC（短暂）→ ABCDEF` 闪烁"的最直接根因。
+
+**根因复述**：阶段 1 关闭了 `[MESSAGE]` 全量 snapshot 通道（针对纯文本流式 turn），但前端 `useStreamingMessages` 的 `streamingTextSegmentsRef`（onContentDelta 累加，最长）与 `patchAssistantForStreaming` 用 `buildStreamingBlocks` rebuild 的 `raw.message.content` blocks 是两个独立内容源；`[USAGE]` 等次要 backend 推送仍会触发 `updateMessages` 走 streaming 分支重建 raw，rebuild 出的 raw 短于 segment 累积值。`preserveStreamingAssistantContent` 只保护顶层 `.content` string，没保护 blocks，于是 `MarkdownBlock` 渲染出回退态。
 
 **改动点**：
-- `ReplayDeduplicator.java:91-93`
-  - 增加 offset 位置校验：`replayContent.length() - delta.length() == offset` 才消费
-  - 否则视为 novel
-- `ClaudeMessageHandler.java:270-276`
-  - 先 `beginContentReplay` 再 append，避免 offset 偏移
-- `MessageMerger.java:316-333`
-  - `preferMoreCompleteContent` 增加严格前缀检查
 
-**触发条件**：阶段 1 观察 1-2 天后，若仍有零星重复
+1. `webview/src/hooks/windowCallbacks/messageSync.ts` `preserveStreamingAssistantContent`（约 L190-234）
+   - 在已有的 `.content` 长度比较基础上，**对 `.raw.message.content` 的 text/thinking 块也按 block index 比较长度**，取较长者保留——前端 segment 永远是真相。
+2. `webview/src/hooks/windowCallbacks/registerCallbacks/messageCallbacks.ts` 的 streaming 分支（约 L314-331）
+   - 在调用 `patchAssistantForStreaming` 之前增加守门：当 `streamingTextSegmentsRef[active]` 已比 backend snapshot 对应 block 的 text 长时，**跳过 rebuild**（保留前端态，等下一帧），而不是用 backend 的较短值 rebuild。
+3. （可选）增加 `useStreamingMessages.ts` 内一个一致性 invariant：每次 patch 后断言 `result[idx].content.length >= max(segments_active.length)`，开发模式下违反则 console.warn——尽早暴露未来回归。
+
+**验证**：
+- 单元测试：`messageSync.dedup.test.ts` 新增 case "backend updateMessages 携带短于 segment 的 raw 不应回写覆盖 blocks"。
+- 手动：用一段长 markdown 表格 + Anthropic prompt caching 故意让 backend snapshot 滞后于 delta，肉眼观察是否还闪烁。
+
+**触发条件**：当前问题（已确认）。
 
 ---
 
-### 🟢 阶段 3（P2，可选）— 前端兜底加固
+### 🟢 阶段 3（P1，**新方向**，2026-04-29 复盘后重写）— 统一 rAF + setTimeout 节流调度
 
-**目标**：提升前端去重能力作为最终兜底
+**目标**：消除"backend snapshot 偶发插队在两个 delta 之间引发的时序倒灌"。
+
+**根因复述**：`messageCallbacks.ts:402-425` 的 backend `updateMessages` 用 `requestAnimationFrame`（~16ms），`streamingCallbacks.ts:200-212` 的 `onContentDelta` 用 `setTimeout(...,~50ms)` 节流。两者完全独立，commit 落盘的顺序是不确定的。当 `T=15ms` 一个 backend snapshot 来 → 16ms 触发 rAF rebuild blocks（短）→ 50ms 触发 throttled delta（长），用户视觉上看到 `ABCDE → ABC → ABCDEF`。
 
 **改动点**：
-- `useStreamingMessages.ts:156-171`
-  - 移除 `mergeStreamingTextLikeContent` 的硬拼接兜底
-  - 改为：无包含/重叠关系时取较长一方
-- `useStreamingMessages.ts:173-227`
-  - `trimDuplicateTextLikeContent` 重叠扫描上限从 200 字符提到 2KB
-  - 或改用 rolling hash / SHA1 段哈希全长度匹配
-- `messageUtils.ts:849`
-  - `mergeConsecutiveAssistantMessages` 按 block.text 哈希去重
-- `streamingCallbacks.ts:164`
-  - 引入 chunk seq，重复 seq 跳过
 
-**触发条件**：下个版本，作为纵深防御
+1. 把两条节流并入**一个共享的微任务队列**（推荐 rAF + 内部 dirty flag）：
+   - `streamingCallbacks.ts` `onContentDelta` 改为只更新 `streamingTextSegmentsRef` 并 `markDirty()`，不直接调 `setUserMessages`。
+   - `messageCallbacks.ts` `updateMessages` 同样只入队 backend snapshot 并 `markDirty()`。
+   - 单一 rAF 在每帧 flush：先 apply backend snapshot（如果有），再叠加 segment refs 的新增部分，最后 `setUserMessages`。
+2. 引入"backend snapshot 优先级低于 segment"规则：每帧 flush 时，segment 是 source of truth，backend 仅补充非 text 块（tool_use、tool_result、thinking 等）。
+
+**验证**：
+- 单元测试：模拟 `T=0/10/15/50ms` 四个事件交错，断言连续两帧 `setUserMessages` 的 text 长度单调不递减。
+- E2E：关闭 daemon，强行走 channel-manager fallback，观察行为是否一致。
+
+**触发条件**：阶段 2 上线后若仍有间歇性闪烁。
 
 ---
 
-### 🔵 阶段 4（P3，长期）— 跨层序列号机制
+### 🔵 阶段 4（P3，长期，保留）— 跨层序列号机制
 
 **目标**：彻底消除字符比较，改用序列号去重
 
 **设计**：
 - 后端为每个 delta 分配单调递增 `seq`
 - 前端按 seq 严格去重，与字符内容无关
-- 跨三层改动，建议在阶段 1-3 验证有效后再做
+- 跨三层改动，建议在阶段 2/3 验证有效后再做
+
+---
+
+### ⚪ 附录 A（已废弃方案）— 修 Java 后端 endsWith 误吞（原阶段 2）
+
+**复盘结论（2026-04-29）**：此方案对当前用户反馈的"重复闪烁"无效——阶段 1 后纯文本 turn 中 `ReplayDeduplicator.syncedContentReplay==null`，`ReplayDeduplicator.java:75-78` 直接 inactive 返回，**根本不会进入 endsWith 分支**。该 bug 仅在 tool_use turn 中可能触发，且即使触发也只表现为"漏（吃掉 novel）"，不是"凭空多出"，与"重复闪烁"现象无关。
+
+**保留原方案以备日后**（如未来发现 tool_use turn 出现"内容缺失"才用）：
+
+- `ReplayDeduplicator.java:91-93`
+  - 增加 offset 位置校验：`replayContent.length() - delta.length() == offset` 才消费
+  - 否则视为 novel
+- `ClaudeMessageHandler.java:270-276`
+  - 先 `beginContentReplay` 再 append，避免 offset 偏移
+- `MessageMerger.java:316-333`
+  - `preferMoreCompleteContent` 增加严格前缀检查（这一条仍然有意义，可能并入新阶段 2 的纵深防御）
 
 ---
 
@@ -153,17 +212,21 @@
 
 #### Java（待扩充）
 - `ClaudeMessageHandlerDedupTest.java`（已有）
-- `ReplayDeduplicatorEdgeCaseTest.java`（阶段 2 新增）
-  - 夹杂 delta 的 snapshot 序列
-  - endsWith 误命中场景
-  - text 块被 tool_use 切分
+- ~~`ReplayDeduplicatorEdgeCaseTest.java`（原阶段 2 新增）~~ — **复盘后废弃**：原阶段 2 已降级到附录 A，相关测试无意义
+- `MessageMergerPreferMoreCompleteContentTest.java`（新阶段 2 纵深防御，可选）
+  - tool_use turn 中 incoming/existing 不互为前缀时，不应直接取最长
+  - 校验严格前缀匹配后才合并
 
-#### 前端（待扩充）
-- `mergeStreamingTextLikeContent.test.ts`（阶段 3 新增）
+#### 前端（**新阶段 2/3 主要测试位置**，待扩充）
+- `messageSync.dedup.test.ts`（**新阶段 2 必加**）
+  - case A：backend `updateMessages` 携带短于 `streamingTextSegmentsRef` 的 raw blocks → 断言 `setUserMessages` 后 `.raw.message.content[0].text` 长度不变（守住前端 segment 真相）
+  - case B：[USAGE] 触发 `updateMessages` 在 onContentDelta 之间插队 → 断言 React 没有看到回退态
+  - case C：>1KB 大块 Markdown 重复（保留原阶段 3 用例，仍有效）
+- `streamingScheduler.test.ts`（**新阶段 3 必加**）
+  - 模拟 `T=0/10/15/50ms` 四个事件交错，断言连续两帧 setUserMessages 的 text 长度单调不递减
+- `mergeStreamingTextLikeContent.test.ts`（保留原阶段 3 思路，仍有效）
   - 完全包含 / 部分重叠 / 完全无关
   - 断言永不硬拼接
-- `messageSync.dedup.test.ts`（阶段 3 新增）
-  - >1KB 大块 Markdown 重复
 
 ### 2. 集成测试（待补充）
 
@@ -215,59 +278,63 @@ if (!hasOverlap) {
 ## 后续步骤
 
 ### 立即行动
-1. ✅ 合并 commit ddaa590 到 `feature/v0.4.1`
-2. ⏳ 观察用户反馈 1-2 天
+1. ✅ 合并 commit ddaa590 到 `feature/v0.4.1`（已完成）
+2. ⏳ 观察用户反馈 1-2 天 → **观察结果：仍重复闪烁，且非个例（2026-04-29 确认）**
 
-### 决策点（2 天后）
+### 决策点（2026-04-29 复盘后更新）
 
-**场景 A：用户反馈消失**
-- ✅ 阶段 1 修复有效
-- 可选：进入阶段 2 精简 Java 去重逻辑（作为纵深防御）
-- 阶段 3 留到下个版本
+**实际命中场景**：B（仍有重复，且非"零星"，是普遍存在）
 
-**场景 B：仍有零星重复**
-- 🔍 排查第二条数据源：
-  - codex-channel 是否有类似问题
-  - history replay 路径（resume session）
-  - 前端 rAF 节流导致的 ref 失效
-- 进入阶段 2 修 Java endsWith 误吞
+**原决策的错误**：把场景 B 的预案设为"修 Java endsWith"——这条路径在阶段 1 后已不会被触发（见复盘版根因排序 #6），修了无效。
 
-**场景 C：完全无改善**
-- ⚠️ 说明诊断有误，重新排查
-- 可能方向：
-  - SDK 本身 bug（升级 SDK 版本）
-  - JCEF 通信层丢包/乱序
-  - 前端 React 18 并发渲染问题
+**修正后的行动顺序**：
+
+1. **优先做新阶段 2**（前端 `preserveStreamingAssistantContent` 扩展 + `patchAssistantForStreaming` 守门）——直接消除 segment vs raw blocks reconcile race，预期能解决大部分用户反馈。
+2. **若新阶段 2 上线后仍有间歇性闪烁**，继续做新阶段 3（统一 rAF + setTimeout 节流调度）。
+3. **若新阶段 2/3 都做完仍有 tool_use turn 内容混乱**，再启用附录 A 的 `MessageMerger.preferMoreCompleteContent` 严格前缀校验（纵深防御）。
+4. **若所有方案都不解决**，才进入"诊断有误"模式，按原场景 C 的方向排查：
+   - SDK 本身 bug（升级 SDK 版本）
+   - JCEF 通信层丢包/乱序
+   - 前端 React 18 并发渲染问题
+   - commit `0a3e523`（subscriber registry for provider updates）是否引入 callback 注册顺序回归
 
 ---
 
 ## 关键文件清单
 
 ### ai-bridge
-- `ai-bridge/services/claude/stream-event-processor.js` — shouldOutputMessage 修复
-- `ai-bridge/services/claude/stream-event-processor.test.js` — 新增测试
-- `ai-bridge/services/claude/persistent-query-service.js` — executeTurn 流程
-- `ai-bridge/services/claude/message-sender.js` — 旧路径参考
+- `ai-bridge/services/claude/stream-event-processor.js` — shouldOutputMessage 修复（阶段 1，已生效）
+- `ai-bridge/services/claude/stream-event-processor.test.js` — 新增测试（阶段 1）
+- `ai-bridge/services/claude/persistent-query-service.js` — executeTurn 流程（**默认 daemon 路径**）
+- `ai-bridge/services/claude/message-sender.js` — 回退路径，自带 `shouldOutput` 保护（无回归）
+- `ai-bridge/daemon.js` — daemon 入口，转发 `claude.send` 到 `sendMessagePersistent`
+- `ai-bridge/channels/claude-channel.js` — 回退入口
 
 ### Java 后端
+- `src/main/java/com/github/claudecodegui/provider/claude/ClaudeSDKBridge.java` — daemon vs per-process 路由（L365-371 daemon 优先）
 - `src/main/java/com/github/claudecodegui/session/ClaudeMessageHandler.java` — 消息编排
-- `src/main/java/com/github/claudecodegui/session/ReplayDeduplicator.java` — 去重器
-- `src/main/java/com/github/claudecodegui/session/MessageMerger.java` — 块合并
+- `src/main/java/com/github/claudecodegui/session/ReplayDeduplicator.java` — 去重器（阶段 1 后纯文本 turn 空跑）
+- `src/main/java/com/github/claudecodegui/session/MessageMerger.java` — 块合并（**新阶段纵深防御位置**）
 - `src/test/java/com/github/claudecodegui/session/ClaudeMessageHandlerDedupTest.java` — 测试
 
-### 前端
-- `webview/src/hooks/windowCallbacks/registerCallbacks/streamingCallbacks.ts` — delta 累加
-- `webview/src/hooks/windowCallbacks/registerCallbacks/messageCallbacks.ts` — snapshot 处理
-- `webview/src/hooks/windowCallbacks/messageSync.ts` — 同步逻辑
-- `webview/src/hooks/useStreamingMessages.ts` — 流式状态机
-- `webview/src/utils/messageUtils.ts` — 消息合并
+### 前端（**新阶段 2/3 主战场**）
+- `webview/src/hooks/windowCallbacks/registerCallbacks/streamingCallbacks.ts` — delta 累加 + 50ms `setTimeout` 节流
+- `webview/src/hooks/windowCallbacks/registerCallbacks/messageCallbacks.ts` — snapshot 处理 + rAF 节流（约 L402-425）+ streaming 分支 rebuild（约 L314-331）
+- `webview/src/hooks/windowCallbacks/messageSync.ts` — `preserveStreamingAssistantContent`（约 L190-234，**新阶段 2 主要修改点**）
+- `webview/src/hooks/useStreamingMessages.ts` — 流式状态机 + `streamingTextSegmentsRef` + `buildStreamingBlocks`
+- `webview/src/utils/messageUtils.ts` — 消息合并（`mergeConsecutiveAssistantMessages` L849）
+- `webview/src/components/MarkdownBlock/...` — 实际渲染 `.raw.message.content` blocks 的组件（决定为什么 `.content` 保护没用）
 
 ---
 
 ## 参考资料
 
-- **相关 Commit**: e6d7f49 (引入 ReplayDeduplicator 但未关闭上游源)
-- **诊断报告**: 本文档"根因分析"章节
+- **相关 Commit**: 
+  - `e6d7f49`（引入 ReplayDeduplicator 但未关闭上游源）
+  - `ddaa590`（阶段 1 关闭 stream-event-processor 冗余 [MESSAGE]）
+  - `b326a1a`（保留本文档的修复上下文）
+  - `0a3e523`（subscriber registry for provider updates，复盘待排查是否影响 callback 注册）
+- **诊断报告**: 本文档"根因分析"章节（含初版与复盘版）
 - **测试覆盖**: 本文档"测试策略"章节
 - **用户反馈**: GitHub Issues / 用户群聊天记录
 
@@ -279,10 +346,14 @@ if (!hasOverlap) {
 2. **不要把 emitUsageTag 移到 shouldOutputMessage 后面**：[USAGE] 必须独立发出
 3. **不要删除 processMessageContent 的 tail-fill 逻辑**：它是 conservative sync 的核心
 4. **ReplayDeduplicator 是纵深防御**：上游修复后它应该很少触发，但不能删
-5. **前端 200 字符上限是已知限制**：阶段 3 会提升，但不影响阶段 1 效果
+5. ~~**前端 200 字符上限是已知限制**：阶段 3 会提升，但不影响阶段 1 效果~~
+6. **（2026-04-29 新增）`preserveStreamingAssistantContent` 必须保护 `.raw.message.content` blocks，不只是 `.content`** —— `MarkdownBlock` 渲染的是 blocks。
+7. **（2026-04-29 新增）segment refs（前端 onContentDelta 累加）是流式中的 source of truth** —— 任何 backend snapshot rebuild 都不能让前端渲染态出现"长度回退"。
+8. **（2026-04-29 新增）daemon 与 channel-manager 是两条独立路径** —— 任何与流式相关的 ai-bridge 修复都要同时考虑两条路径，至少要在 PR 描述说明哪条受影响。
 
 ---
 
-**最后更新**: 2026-04-28  
+**初版**: 2026-04-28  
+**复盘修正**: 2026-04-29  
 **维护者**: zhukunpeng  
-**审查者**: Claude Code (multi-agent team)
+**审查者**: Claude Code (multi-agent team — 初版 + 2026-04-29 复盘三路并行调查)
