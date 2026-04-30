@@ -4,6 +4,8 @@
     border-bottom: 1px solid var(--color-history-border);
     cursor: pointer;
     transition: background-color 0.2s;
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
 .history-item:hover {
@@ -293,25 +295,30 @@
     }
 }
 
-/* 操作按钮容器：默认隐藏，悬停时显示 */
+/* 操作按钮容器：默认隐藏但保留布局空间，悬停时显示 */
 .history-action-buttons {
-    display: none;
+    display: flex;
     align-items: center;
     gap: 4px;
+    visibility: hidden;
+    opacity: 0;
 }
 
 .history-action-buttons.has-favorite {
-    display: flex;
+    visibility: visible;
+    opacity: 1;
 }
 
 .history-item:not(:hover) .history-action-buttons.has-favorite .history-edit-btn,
 .history-item:not(:hover) .history-action-buttons.has-favorite .history-export-btn,
 .history-item:not(:hover) .history-action-buttons.has-favorite .history-delete-btn {
-    display: none;
+    visibility: hidden;
+    opacity: 0;
 }
 
 .history-item:hover .history-action-buttons {
-    display: flex;
+    visibility: visible;
+    opacity: 1;
 }
 
 .history-item:hover .history-delete-btn,
