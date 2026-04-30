@@ -81,6 +81,9 @@ export function useSessionManagement({
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const historyDataRef = useRef(historyData);
   historyDataRef.current = historyData;
+  const showSessionDeletedToast = useCallback(() => {
+    addToast(t('history.sessionDeleted'), 'success');
+  }, [addToast, t]);
 
   const beginSessionTransition = useCallback((nextSessionId: string | null, nextTitle: string | null) => {
     window.__sessionTransitioning = true;
@@ -231,10 +234,9 @@ export function useSessionManagement({
         sendBridgeEvent('create_new_session');
       }
 
-      // Show success toast
-      addToast(t('history.sessionDeleted'), 'success');
     }
-  }, [historyData, currentSessionId, loading, setHistoryData, setMessages, setCurrentSessionId, setCustomSessionTitle, setUsagePercentage, setUsageUsedTokens, addToast, t]);
+    showSessionDeletedToast();
+  }, [historyData, currentSessionId, loading, setHistoryData, setMessages, setCurrentSessionId, setCustomSessionTitle, setUsagePercentage, setUsageUsedTokens, showSessionDeletedToast]);
 
   // Batch delete history sessions
   const deleteHistorySessions = useCallback((sessionIds: string[]) => {
@@ -272,9 +274,9 @@ export function useSessionManagement({
         sendBridgeEvent('create_new_session');
       }
 
-      addToast(t('history.sessionDeleted'), 'success');
     }
-  }, [historyData, currentSessionId, loading, setHistoryData, beginSessionTransition, addToast, t]);
+    showSessionDeletedToast();
+  }, [historyData, currentSessionId, loading, setHistoryData, beginSessionTransition, showSessionDeletedToast]);
 
   // Export history session
   const exportHistorySession = useCallback((sessionId: string, title: string) => {

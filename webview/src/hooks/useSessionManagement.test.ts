@@ -205,6 +205,29 @@ describe('useSessionManagement', () => {
     expect(historyData.total).toBe(0);
     expect(window.sendToJava).toHaveBeenCalledTimes(1);
     expect(window.sendToJava).toHaveBeenCalledWith('delete_sessions:["history-1","history-2"]');
+    expect(mocks.addToast).toHaveBeenCalledWith('history.sessionDeleted', 'success');
+  });
+
+  it('still shows a success toast for batch delete when history data is temporarily unavailable', () => {
+    const mocks = createMocks();
+
+    const { result } = renderHook(() =>
+      useSessionManagement({
+        messages: [],
+        loading: false,
+        historyData: null,
+        currentSessionId: null,
+        ...mocks,
+        t,
+      })
+    );
+
+    act(() => {
+      result.current.deleteHistorySessions(['history-1', 'history-2', 'history-1']);
+    });
+
+    expect(window.sendToJava).toHaveBeenCalledWith('delete_sessions:["history-1","history-2"]');
+    expect(mocks.addToast).toHaveBeenCalledWith('history.sessionDeleted', 'success');
   });
 
   it('forceCreateNewSession interrupts loading session and cleans state', () => {
