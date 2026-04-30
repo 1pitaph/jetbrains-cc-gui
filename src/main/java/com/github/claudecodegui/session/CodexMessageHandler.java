@@ -549,6 +549,7 @@ public class CodexMessageHandler implements MessageCallback {
             currentAssistantMessage.content = assistantContent.toString();
         }
 
+        callbackHandler.notifyContentDelta(content);
         callbackHandler.notifyMessageUpdate(state.getMessages());
     }
 

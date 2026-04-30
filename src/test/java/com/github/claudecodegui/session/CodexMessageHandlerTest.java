@@ -21,6 +21,7 @@ public class CodexMessageHandlerTest {
         int messageUpdateCount = 0;
         boolean lastLoading = false;
         boolean lastBusy = false;
+        final List<String> contentDeltas = new ArrayList<>();
         final List<Message> lastMessages = new ArrayList<>();
 
         @Override
@@ -70,6 +71,11 @@ public class CodexMessageHandlerTest {
         public void onStreamEnd() {
             streamEndCount++;
         }
+
+        @Override
+        public void onContentDelta(String delta) {
+            contentDeltas.add(delta);
+        }
     }
 
     @Test
@@ -93,6 +99,23 @@ public class CodexMessageHandlerTest {
         assertFalse(state.isLoading());
         assertTrue(callback.messageUpdateCount >= 2);
         assertEquals("done", callback.lastMessages.get(callback.lastMessages.size() - 1).content);
+    }
+
+    @Test
+    public void contentDeltaIsForwardedToFrontendStreamingCallback() {
+        SessionState state = new SessionState();
+
+        CallbackHandler callbackHandler = new CallbackHandler();
+        RecordingCallback callback = new RecordingCallback();
+        callbackHandler.setCallback(callback);
+
+        CodexMessageHandler handler = new CodexMessageHandler(state, callbackHandler);
+        handler.onMessage("stream_start", "");
+        handler.onMessage("content_delta", "hello");
+        handler.onMessage("content_delta", " world");
+
+        assertEquals(List.of("hello", " world"), callback.contentDeltas);
+        assertEquals("hello world", state.getMessages().get(0).content);
     }
 
     @Test
