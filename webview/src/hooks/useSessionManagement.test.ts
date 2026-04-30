@@ -26,6 +26,7 @@ describe('useSessionManagement', () => {
   beforeEach(() => {
     (window as any).__sessionTransitioning = false;
     (window as any).__sessionTransitionToken = null;
+    (window as any).__pendingSessionTransitionToast = undefined;
     window.sendToJava = vi.fn();
   });
 
@@ -228,6 +229,59 @@ describe('useSessionManagement', () => {
 
     expect(window.sendToJava).toHaveBeenCalledWith('delete_sessions:["history-1","history-2"]');
     expect(mocks.addToast).toHaveBeenCalledWith('history.sessionDeleted', 'success');
+  });
+
+  it('defers the deleted toast until transition completion when batch delete removes current session', () => {
+    let historyData = {
+      success: true,
+      sessions: [
+        {
+          sessionId: 'history-1',
+          title: 'History One',
+          provider: 'claude',
+          messageCount: 3,
+          lastTimestamp: Date.now(),
+        },
+        {
+          sessionId: 'history-2',
+          title: 'History Two',
+          provider: 'codex',
+          messageCount: 5,
+          lastTimestamp: Date.now(),
+        },
+      ],
+      total: 8,
+    } as unknown as HistoryData;
+
+    const mocks = {
+      ...createMocks(),
+      setHistoryData: vi.fn((next: HistoryData | null | ((current: HistoryData | null) => HistoryData | null)) => {
+        historyData = typeof next === 'function' ? next(historyData) as HistoryData : next as HistoryData;
+      }),
+    };
+
+    const { result } = renderHook(() =>
+      useSessionManagement({
+        messages: [],
+        loading: false,
+        historyData,
+        currentSessionId: 'history-1',
+        ...mocks,
+        t,
+      })
+    );
+
+    act(() => {
+      result.current.deleteHistorySessions(['history-1', 'history-2']);
+    });
+
+    expect(window.sendToJava).toHaveBeenCalledWith('delete_sessions:["history-1","history-2"]');
+    expect(window.sendToJava).toHaveBeenCalledWith('create_new_session:');
+    expect(mocks.addToast).not.toHaveBeenCalledWith('history.sessionDeleted', 'success');
+    expect((window as any).__pendingSessionTransitionToast).toEqual({
+      message: 'history.sessionDeleted',
+      type: 'success',
+    });
   });
 
   it('forceCreateNewSession interrupts loading session and cleans state', () => {
