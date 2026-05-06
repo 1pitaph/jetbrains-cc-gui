@@ -6,6 +6,7 @@
     transition: background-color 0.2s;
     overflow: hidden;
     box-sizing: border-box;
+    position: relative;
 }
 
 .history-item:hover {
@@ -295,13 +296,17 @@
     }
 }
 
-/* 操作按钮容器：默认隐藏但保留布局空间，悬停时显示 */
+/* 操作按钮容器：绝对定位浮层（贴右下、对齐 meta 行），不占据文档流空间，悬停时显示 */
 .history-action-buttons {
+    position: absolute;
+    bottom: 10px;
+    right: 16px;
     display: flex;
     align-items: center;
     gap: 4px;
     visibility: hidden;
     opacity: 0;
+    transition: opacity 0.15s ease;
 }
 
 .history-action-buttons.has-favorite {
