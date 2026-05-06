@@ -130,36 +130,72 @@ export function useStreamingMessages(): UseStreamingMessagesReturn {
     return nextBlocks;
   };
 
+  const getThinkingText = (block: ContentBlock | undefined): string => {
+    if (!block) return '';
+    if (typeof block.thinking === 'string') return block.thinking;
+    if (typeof block.text === 'string') return block.text;
+    return '';
+  };
+
+  // Mirror of syncTextBlocksWithContent for thinking blocks.
+  // streamingThinkingRef accumulates ALL thinking deltas in the current turn,
+  // including segments separated by tool_use blocks (extended thinking can
+  // resume after a tool call).  We must therefore strip the prefix carried by
+  // earlier thinking blocks before assigning the remainder to the last block,
+  // otherwise the last block would receive the concatenation of every segment
+  // and duplicate earlier content.
   const syncThinkingBlocksWithContent = (blocks: ContentBlock[], thinking: string): ContentBlock[] => {
     if (!thinking) return blocks;
 
-    let lastThinkingIdx = -1;
-    for (let i = blocks.length - 1; i >= 0; i -= 1) {
-      if (blocks[i]?.type === 'thinking') {
-        lastThinkingIdx = i;
-        break;
-      }
-    }
+    const thinkingIndices = blocks
+      .map((block, index) => (block?.type === 'thinking' ? index : -1))
+      .filter((index) => index >= 0);
 
-    if (lastThinkingIdx < 0) {
+    if (thinkingIndices.length === 0) {
       return [{ type: 'thinking', thinking, text: thinking }, ...blocks];
     }
 
-    const existingThinking: string = typeof blocks[lastThinkingIdx]?.thinking === 'string'
-      ? (blocks[lastThinkingIdx].thinking ?? '')
-      : typeof blocks[lastThinkingIdx]?.text === 'string'
-        ? (blocks[lastThinkingIdx].text ?? '')
-        : '';
+    const lastThinkingIdx = thinkingIndices[thinkingIndices.length - 1];
+    const prefixThinking = thinkingIndices
+      .slice(0, -1)
+      .map((index) => getThinkingText(blocks[index]))
+      .join('');
 
-    if (existingThinking.length >= thinking.length) {
+    if (!thinking.startsWith(prefixThinking)) {
+      // Cannot reconcile cumulative buffer with split blocks (e.g., backend
+      // dedup rewrote earlier blocks).  For a single block we still try to
+      // overwrite directly; otherwise leave structure untouched.
+      if (thinkingIndices.length !== 1) {
+        return blocks;
+      }
+      const currentThinking = getThinkingText(blocks[lastThinkingIdx]);
+      if (currentThinking === thinking) {
+        return blocks;
+      }
+      const nextBlocks = [...blocks];
+      nextBlocks[lastThinkingIdx] = {
+        ...nextBlocks[lastThinkingIdx],
+        thinking,
+        text: thinking,
+      };
+      return nextBlocks;
+    }
+
+    const desiredLastThinking = thinking.slice(prefixThinking.length);
+    if (!desiredLastThinking) {
+      return blocks;
+    }
+
+    const currentLastThinking = getThinkingText(blocks[lastThinkingIdx]);
+    if (currentLastThinking === desiredLastThinking) {
       return blocks;
     }
 
     const nextBlocks = [...blocks];
     nextBlocks[lastThinkingIdx] = {
       ...nextBlocks[lastThinkingIdx],
-      thinking,
-      text: thinking,
+      thinking: desiredLastThinking,
+      text: desiredLastThinking,
     };
     return nextBlocks;
   };

@@ -218,4 +218,101 @@ describe('useStreamingMessages', () => {
       text: 'Thinking before snapshot',
     });
   });
+
+  it('does not duplicate earlier thinking content when a second thinking block follows a tool_use', () => {
+    // Extended thinking turn:
+    //   thinking_seg1 → tool_use → thinking_seg2
+    // streamingThinkingRef accumulates the whole turn ("Let me think...Now I need...").
+    // Backend raw blocks already split it into [thinking_1, tool_use, thinking_2].
+    // The sync function must only assign the suffix ("Now I need...") to the
+    // second block, not the cumulative buffer.
+    const { result } = renderHook(() => useStreamingMessages());
+
+    result.current.streamingThinkingRef.current = 'Let me think...Now I need...';
+
+    const assistant: ClaudeMessage = {
+      type: 'assistant',
+      content: '',
+      isStreaming: true,
+      raw: {
+        message: {
+          content: [
+            { type: 'thinking', thinking: 'Let me think...', text: 'Let me think...' },
+            { type: 'tool_use', id: 'search-1', name: 'search', input: { q: 'foo' } },
+            { type: 'thinking', thinking: 'Now I need...', text: 'Now I need...' },
+          ],
+        },
+      },
+    };
+
+    const patched = result.current.patchAssistantForStreaming(assistant);
+    const rawContent = (patched.raw as any).message.content as ContentBlockTest[];
+
+    expect(rawContent).toHaveLength(3);
+    expect(rawContent[0]).toMatchObject({ type: 'thinking', thinking: 'Let me think...' });
+    expect(rawContent[1]).toMatchObject({ type: 'tool_use', id: 'search-1' });
+    // The critical assertion: second thinking block must NOT contain "Let me think..."
+    expect(rawContent[2]).toMatchObject({ type: 'thinking', thinking: 'Now I need...' });
+  });
+
+  it('extends the last thinking block as new deltas arrive (single segment)', () => {
+    const { result } = renderHook(() => useStreamingMessages());
+
+    // Backend snapshot is one frame behind the delta channel
+    result.current.streamingThinkingRef.current = 'Thinking longer now';
+
+    const assistant: ClaudeMessage = {
+      type: 'assistant',
+      content: '',
+      isStreaming: true,
+      raw: {
+        message: {
+          content: [{ type: 'thinking', thinking: 'Thinking', text: 'Thinking' }],
+        },
+      },
+    };
+
+    const patched = result.current.patchAssistantForStreaming(assistant);
+    const rawContent = (patched.raw as any).message.content as ContentBlockTest[];
+
+    expect(rawContent).toHaveLength(1);
+    expect(rawContent[0]).toMatchObject({ type: 'thinking', thinking: 'Thinking longer now' });
+  });
+
+  it('keeps backend raw structure intact when the cumulative thinking buffer cannot be reconciled', () => {
+    const { result } = renderHook(() => useStreamingMessages());
+
+    // streamingThinkingRef does not start with the earlier block's text — could
+    // happen if the backend rewrote earlier blocks via dedup.  Sync function
+    // should leave structure untouched rather than overwriting incorrectly.
+    result.current.streamingThinkingRef.current = 'Completely different content';
+
+    const assistant: ClaudeMessage = {
+      type: 'assistant',
+      content: '',
+      isStreaming: true,
+      raw: {
+        message: {
+          content: [
+            { type: 'thinking', thinking: 'Original first', text: 'Original first' },
+            { type: 'tool_use', id: 't1', name: 'noop', input: {} },
+            { type: 'thinking', thinking: 'Original second', text: 'Original second' },
+          ],
+        },
+      },
+    };
+
+    const patched = result.current.patchAssistantForStreaming(assistant);
+    const rawContent = (patched.raw as any).message.content as ContentBlockTest[];
+
+    expect(rawContent[0]).toMatchObject({ thinking: 'Original first' });
+    expect(rawContent[2]).toMatchObject({ thinking: 'Original second' });
+  });
 });
+
+interface ContentBlockTest {
+  type: string;
+  thinking?: string;
+  text?: string;
+  id?: string;
+}
