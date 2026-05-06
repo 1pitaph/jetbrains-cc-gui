@@ -28,6 +28,7 @@ import {
   buildConfigErrorPayload
 } from './message-utils.js';
 import { createPreToolUseHook } from './permission-mode.js';
+import { loadMcpServersConfigAsRecord } from './mcp-status/config-loader.js';
 import { setActiveQueryResult } from './message-session-registry.js';
 import { normalizeStreamDelta, rememberStreamSnapshot } from './stream-delta-normalizer.js';
 
@@ -59,7 +60,7 @@ function resolveThinkingConfig(settings) {
 /**
  * Build query options object shared by both send functions.
  */
-function buildQueryOptions({ workingDirectory, permissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines }) {
+function buildQueryOptions({ workingDirectory, permissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers }) {
   return {
     cwd: workingDirectory,
     permissionMode,
@@ -75,6 +76,7 @@ function buildQueryOptions({ workingDirectory, permissionMode, sdkModelName, max
     canUseTool,
     hooks: { PreToolUse: [{ hooks: [preToolUseHook] }] },
     settingSources: ['user', 'project', 'local'],
+    ...(mcpServers && { mcpServers }),
     systemPrompt: {
       type: 'preset',
       preset: 'claude_code',
@@ -441,7 +443,8 @@ export async function sendMessage(message, resumeSessionId = null, cwd = null, p
     console.log('[DEBUG] Config:', { effectivePermissionMode, alwaysThinkingEnabled, maxThinkingTokens, streamingEnabled, reasoningEffort: normalizedReasoningEffort });
 
     const preToolUseHook = createPreToolUseHook(effectivePermissionMode, workingDirectory);
-    const options = buildQueryOptions({ workingDirectory, permissionMode: effectivePermissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines });
+    const mcpServers = await loadMcpServersConfigAsRecord(workingDirectory);
+    const options = buildQueryOptions({ workingDirectory, permissionMode: effectivePermissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers });
 
     if (normalizedReasoningEffort) {
       options.effort = normalizedReasoningEffort;
@@ -515,7 +518,8 @@ export async function sendMessageWithAttachments(message, resumeSessionId = null
     streamingEnabled = streamingParam != null ? streamingParam : (settings?.streamingEnabled ?? false);
     console.log('[DEBUG] (withAttachments) Config:', { normalizedPermissionMode, alwaysThinkingEnabled, maxThinkingTokens, streamingEnabled, reasoningEffort });
 
-    const options = buildQueryOptions({ workingDirectory, permissionMode: normalizedPermissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines });
+    const mcpServers = await loadMcpServersConfigAsRecord(workingDirectory);
+    const options = buildQueryOptions({ workingDirectory, permissionMode: normalizedPermissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers });
 
     if (reasoningEffort) {
       options.effort = reasoningEffort;

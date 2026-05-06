@@ -41,6 +41,7 @@ import {
   resetRegistryState,
   setActiveTurnRuntime,
 } from './runtime-registry.js';
+import { loadMcpServersConfigAsRecord } from './mcp-status/config-loader.js';
 import {
   createTurnState,
   emitUsageTag,
@@ -87,7 +88,7 @@ function buildSystemPromptAppend(params) {
   return buildIDEContextPrompt(openedFiles, agentPrompt);
 }
 
-function buildQueryOptions(workingDirectory, sdkModelName, permissionMode, maxThinkingTokens, reasoningEffort, streamingEnabled, systemPromptAppend, requestedSessionId) {
+function buildQueryOptions(workingDirectory, sdkModelName, permissionMode, maxThinkingTokens, reasoningEffort, streamingEnabled, systemPromptAppend, requestedSessionId, mcpServers) {
   return {
     cwd: workingDirectory,
     permissionMode,
@@ -105,6 +106,7 @@ function buildQueryOptions(workingDirectory, sdkModelName, permissionMode, maxTh
     ),
     canUseTool,
     settingSources: ['user', 'project', 'local'],
+    ...(mcpServers && { mcpServers }),
     systemPrompt: {
       type: 'preset',
       preset: 'claude_code',
@@ -169,9 +171,12 @@ async function buildRequestContext(params, withAttachments) {
   const maxThinkingTokens = resolveThinkingTokens(params, settings);
   const systemPromptAppend = buildSystemPromptAppend(params);
 
+  const mcpServers = await loadMcpServersConfigAsRecord(workingDirectory);
+
   const options = buildQueryOptions(
     workingDirectory, sdkModelName, permissionMode,
-    maxThinkingTokens, reasoningEffort, streamingEnabled, systemPromptAppend, requestedSessionId
+    maxThinkingTokens, reasoningEffort, streamingEnabled, systemPromptAppend, requestedSessionId,
+    mcpServers
   );
 
   const userMessage = await buildUserMessage(params, withAttachments, requestedSessionId);
