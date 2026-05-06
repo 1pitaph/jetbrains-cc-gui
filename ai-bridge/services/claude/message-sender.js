@@ -28,7 +28,7 @@ import {
   buildConfigErrorPayload
 } from './message-utils.js';
 import { createPreToolUseHook } from './permission-mode.js';
-import { loadMcpServersConfig } from './mcp-status/config-loader.js';
+import { loadMcpServersConfigAsRecord } from './mcp-status/config-loader.js';
 import { setActiveQueryResult } from './message-session-registry.js';
 import { normalizeStreamDelta, rememberStreamSnapshot } from './stream-delta-normalizer.js';
 
@@ -443,9 +443,8 @@ export async function sendMessage(message, resumeSessionId = null, cwd = null, p
     console.log('[DEBUG] Config:', { effectivePermissionMode, alwaysThinkingEnabled, maxThinkingTokens, streamingEnabled, reasoningEffort: normalizedReasoningEffort });
 
     const preToolUseHook = createPreToolUseHook(effectivePermissionMode, workingDirectory);
-    const mcpServers = await loadMcpServersConfig(workingDirectory);
-    const mcpServersForSdk = Object.fromEntries(mcpServers.map(({ name, config }) => [name, config]));
-    const options = buildQueryOptions({ workingDirectory, permissionMode: effectivePermissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers: mcpServersForSdk });
+    const mcpServers = await loadMcpServersConfigAsRecord(workingDirectory);
+    const options = buildQueryOptions({ workingDirectory, permissionMode: effectivePermissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers });
 
     if (normalizedReasoningEffort) {
       options.effort = normalizedReasoningEffort;
@@ -519,9 +518,8 @@ export async function sendMessageWithAttachments(message, resumeSessionId = null
     streamingEnabled = streamingParam != null ? streamingParam : (settings?.streamingEnabled ?? false);
     console.log('[DEBUG] (withAttachments) Config:', { normalizedPermissionMode, alwaysThinkingEnabled, maxThinkingTokens, streamingEnabled, reasoningEffort });
 
-    const mcpServers = await loadMcpServersConfig(workingDirectory);
-    const mcpServersForSdk = Object.fromEntries(mcpServers.map(({ name, config }) => [name, config]));
-    const options = buildQueryOptions({ workingDirectory, permissionMode: normalizedPermissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers: mcpServersForSdk });
+    const mcpServers = await loadMcpServersConfigAsRecord(workingDirectory);
+    const options = buildQueryOptions({ workingDirectory, permissionMode: normalizedPermissionMode, sdkModelName, maxThinkingTokens, streamingEnabled, systemPromptAppend, preToolUseHook, sdkStderrLines, mcpServers });
 
     if (reasoningEffort) {
       options.effort = reasoningEffort;

@@ -41,7 +41,7 @@ import {
   resetRegistryState,
   setActiveTurnRuntime,
 } from './runtime-registry.js';
-import { loadMcpServersConfig } from './mcp-status/config-loader.js';
+import { loadMcpServersConfigAsRecord } from './mcp-status/config-loader.js';
 import {
   createTurnState,
   emitUsageTag,
@@ -171,13 +171,12 @@ async function buildRequestContext(params, withAttachments) {
   const maxThinkingTokens = resolveThinkingTokens(params, settings);
   const systemPromptAppend = buildSystemPromptAppend(params);
 
-  const mcpServers = await loadMcpServersConfig(workingDirectory);
-  const mcpServersForSdk = Object.fromEntries(mcpServers.map(({ name, config }) => [name, config]));
+  const mcpServers = await loadMcpServersConfigAsRecord(workingDirectory);
 
   const options = buildQueryOptions(
     workingDirectory, sdkModelName, permissionMode,
     maxThinkingTokens, reasoningEffort, streamingEnabled, systemPromptAppend, requestedSessionId,
-    mcpServersForSdk
+    mcpServers
   );
 
   const userMessage = await buildUserMessage(params, withAttachments, requestedSessionId);
