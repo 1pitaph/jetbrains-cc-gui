@@ -200,7 +200,7 @@ function setupScaleRecovery() {
     });
   };
 
-  document.addEventListener('visibilitychange', () => {
+  const onVisibilityChange = () => {
     if (document.hidden) {
       hiddenAt = Date.now();
       return;
@@ -212,17 +212,36 @@ function setupScaleRecovery() {
     if (elapsed > 1500) {
       schedule('visibilitychange-resume');
     }
-  });
+  };
 
-  window.addEventListener('focus', () => {
+  const onWindowFocus = () => {
     // Focus can return without a visibilitychange in some IDE/window states.
     schedule('window-focus');
-  });
+  };
 
-  window.addEventListener('pageshow', () => {
+  const onPageShow = () => {
     // Helps if the page is restored from bfcache-like behavior.
     schedule('pageshow');
-  });
+  };
+
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('focus', onWindowFocus);
+  window.addEventListener('pageshow', onPageShow);
+
+  const cleanup = () => {
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.removeEventListener('focus', onWindowFocus);
+    window.removeEventListener('pageshow', onPageShow);
+  };
+
+  // Best-effort teardown to release listeners on navigation/unload, mirroring
+  // the heartbeat cleanup pattern above.
+  window.addEventListener('beforeunload', cleanup, { once: true });
+  window.addEventListener('pagehide', cleanup, { once: true });
+
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => cleanup());
+  }
 }
 
 let latestEditorFontConfig: {

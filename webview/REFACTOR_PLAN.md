@@ -154,33 +154,44 @@
 
 ---
 
-### TASK-P0-04：修复事件监听器内存泄漏
+### TASK-P0-04：修复事件监听器内存泄漏 ✅ 已完成（2026-05-06）
 
 - **优先级**：P0
 - **预计耗时**：2 小时
+- **实际耗时**：~30 分钟
 - **收益**：⭐⭐⭐ （内存稳定性）
 - **风险**：🟢 低
 - **依赖**：无
 
-#### 涉及文件
-- `webview/src/components/settings/ProviderList/index.tsx:64-69`（事件监听器从未移除）
-- 全局搜索：`grep -rn "addEventListener" webview/src --include="*.tsx" --include="*.ts"`
+#### 全量审计结果
 
-#### 执行步骤
-- [ ] **Step 1**：检查每处 `addEventListener` 是否有对应的 `removeEventListener`
-- [ ] **Step 2**：缺失清理的位置补充 useEffect cleanup：
-  ```tsx
-  useEffect(() => {
-    const handler = () => {...};
-    window.addEventListener('resize', handler);
-    return () => window.removeEventListener('resize', handler);
-  }, []);
-  ```
-- [ ] **Step 3**：dragover/drop 事件（App.tsx:193-209）确认清理正确
+对 `webview/src` 全部 76 处 `addEventListener` 与 71 处 `removeEventListener` 进行交叉对比，绝大多数已有正确清理。仅识别出 **2 处真实问题**：
 
-#### 验收标准
-- 所有 `addEventListener` 都有对应的清理逻辑
-- 切换会话后用 Chrome DevTools Memory Profile 检测无泄漏
+| 文件 | 位置 | 问题 | 修复方案 |
+|------|------|------|---------|
+| `components/ChatInputBox/providers/fileReferenceProvider.ts` | L157 | `signal.addEventListener('abort', ...)` 未加 `{ once: true }`；同一长生命周期 signal 多次调用会累积监听器 | 添加 `{ once: true }`，与 agentProvider / slashCommandProvider / promptProvider 模式保持一致 |
+| `main.tsx`（`setupScaleRecovery`） | L203 / 217 / 222 | 使用匿名箭头函数注册 `visibilitychange` / `focus` / `pageshow`，技术上无法被 `removeEventListener` 卸下；虽属页面级一次性 setup，但与文件内 heartbeat 的 `pagehide` cleanup 模式不一致 | 提取为命名 handler `onVisibilityChange` / `onWindowFocus` / `onPageShow`；新增 `cleanup()` 在 `beforeunload` / `pagehide` / Vite HMR dispose 时统一移除，与 `createBridgeHeartbeatStarter` 的清理模式对齐 |
+
+#### 已确认正确的高频清理模式（无需变更）
+
+- `useDragSort.ts:180/192/199`：使用 `AbortController.signal` 选项注册，abort 时浏览器自动卸载 ✅
+- `slashCommandProvider.ts:170` / `agentProvider.ts:125` / `promptProvider.ts:173`：均使用 `{ once: true }` ✅
+- `App.tsx:201-203`（dragover/drop/dragenter）：useEffect 内成对 add/remove ✅
+- `settings/ProviderList/index.tsx:136-138`：useEffect cleanup 完整移除三个监听器 + 清空 window 全局回调 ✅
+- 其余所有对话框/下拉菜单/click-outside / keydown 监听均位于 useEffect 中且 cleanup 函数对应 `removeEventListener` ✅
+
+#### 涉及文件（已处理）
+
+- `webview/src/components/ChatInputBox/providers/fileReferenceProvider.ts`（L157 添加 `{ once: true }` 选项）
+- `webview/src/main.tsx`（`setupScaleRecovery` 函数：3 处匿名监听器改为命名 handler + 新增 `cleanup` 在 beforeunload/pagehide/HMR dispose 时移除）
+
+#### 验收结果
+
+- ✅ `grep -rn "addEventListener" webview/src` 全部 76 处 与 `removeEventListener` 完整交叉匹配
+- ✅ `cd webview && npm test -- --run` → **356 / 356 通过**
+- ✅ `cd webview && npm run build` → vite build 成功（5.7MB / 1.6MB gzip）
+- ✅ 所有 `addEventListener` 现在均有清理路径：useEffect cleanup / `{ once: true }` / `AbortController.signal` / `pagehide` 命名 handler 移除
+- ⚠️ Chrome DevTools Memory Profile 实测验证需在 IDE 实例中进行，留待运行时验证
 
 ---
 
