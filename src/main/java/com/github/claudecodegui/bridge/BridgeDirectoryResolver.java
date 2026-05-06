@@ -562,6 +562,10 @@ public class BridgeDirectoryResolver {
                             LOG.info("[BridgeResolver] Existing extraction is valid, skipping delete+extract");
                             this.extractionState.set(ExtractionState.COMPLETED);
                             this.cachedSdkDir = extractedDir;
+                            CompletableFuture<File> future = this.extractionFutureRef.get();
+                            if (future != null) {
+                                future.complete(extractedDir);
+                            }
                             this.extractionReadyFuture.complete(true);
                             return extractedDir;
                         }
