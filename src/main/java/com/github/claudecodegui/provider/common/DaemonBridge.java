@@ -10,6 +10,7 @@ import com.intellij.openapi.diagnostic.Logger;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -66,8 +67,9 @@ public class DaemonBridge {
     // Lifecycle listener
     private volatile DaemonLifecycleListener lifecycleListener;
 
-    // Event listener for custom daemon events
-    private volatile DaemonEventListener eventListener;
+    // Event listeners for custom daemon events. CopyOnWriteArrayList allows safe
+    // iteration during dispatch while listeners may be added/removed concurrently.
+    private final List<DaemonEventListener> eventListeners = new CopyOnWriteArrayList<>();
 
     public DaemonBridge(
             NodeDetector nodeDetector,
@@ -567,9 +569,12 @@ public class DaemonBridge {
                 LOG.info("[DaemonBridge] AI title generated: sessionId="
                         + (obj.has("sessionId") ? obj.get("sessionId").getAsString() : "?")
                         + ", title=" + (obj.has("title") ? obj.get("title").getAsString() : "?"));
-                DaemonEventListener listener = this.eventListener;
-                if (listener != null) {
-                    listener.onDaemonEvent(event, obj);
+                for (DaemonEventListener listener : eventListeners) {
+                    try {
+                        listener.onDaemonEvent(event, obj);
+                    } catch (Exception ex) {
+                        LOG.warn("[DaemonBridge] Listener threw while handling " + event, ex);
+                    }
                 }
                 break;
             }
@@ -637,10 +642,22 @@ public class DaemonBridge {
     }
 
     /**
-     * Set a listener for custom daemon events (e.g., title_generated).
+     * Register a listener for custom daemon events (e.g., title_generated).
+     * Multiple listeners may coexist; each is invoked on every matching event.
+     * Callers MUST pair this with {@link #removeEventListener} on disposal to
+     * avoid memory leaks.
      */
-    public void setEventListener(DaemonEventListener listener) {
-        this.eventListener = listener;
+    public void addEventListener(DaemonEventListener listener) {
+        if (listener == null) return;
+        eventListeners.add(listener);
+    }
+
+    /**
+     * Remove a previously registered listener. No-op if not registered.
+     */
+    public void removeEventListener(DaemonEventListener listener) {
+        if (listener == null) return;
+        eventListeners.remove(listener);
     }
 
     public boolean isSdkPreloaded() {

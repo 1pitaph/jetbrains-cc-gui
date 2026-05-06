@@ -67,6 +67,9 @@ public class ClaudeChatWindow {
     private volatile boolean frontendReady = false;
     private volatile boolean slashCommandsFetched = false;
     private final AtomicBoolean restoredHistoryLoadStarted = new AtomicBoolean(false);
+
+    // Daemon event listener for AI title forwarding. Held so it can be removed on dispose.
+    private DaemonBridge.DaemonEventListener titleEventListener;
     private volatile int fetchedSlashCommandsCount = 0;
 
     private HandlerContext handlerContext;
@@ -560,20 +563,26 @@ public class ClaudeChatWindow {
         // Calling through sessionCallbackAdapter would silently drop the event
         // if setupSessionCallbacks() is invoked again before the title arrives
         // (adapter.deactivate() → isInactive() → event discarded).
-        this.claudeSDKBridge.setDaemonEventListener((event, data) -> {
-            if ("title_generated".equals(event)) {
-                String genSessionId = data.has("sessionId") ? data.get("sessionId").getAsString() : null;
-                String title = data.has("title") ? data.get("title").getAsString() : null;
-                if (genSessionId != null && title != null) {
-                    ApplicationManager.getApplication().invokeLater(() -> {
-                        if (!disposed) {
-                            callJavaScript("updateSessionTitle",
-                                    JsUtils.escapeJs(genSessionId), JsUtils.escapeJs(title));
-                        }
-                    });
+        // Register only once per ClaudeChatWindow; subsequent setupSessionCallbacks()
+        // calls reuse the existing listener so the bridge keeps a single registration
+        // per window. The listener is removed in dispose().
+        if (this.titleEventListener == null) {
+            this.titleEventListener = (event, data) -> {
+                if ("title_generated".equals(event)) {
+                    String genSessionId = data.has("sessionId") ? data.get("sessionId").getAsString() : null;
+                    String title = data.has("title") ? data.get("title").getAsString() : null;
+                    if (genSessionId != null && title != null) {
+                        ApplicationManager.getApplication().invokeLater(() -> {
+                            if (!disposed) {
+                                callJavaScript("updateSessionTitle",
+                                        JsUtils.escapeJs(genSessionId), JsUtils.escapeJs(title));
+                            }
+                        });
+                    }
                 }
-            }
-        });
+            };
+            this.claudeSDKBridge.addDaemonEventListener(this.titleEventListener);
+        }
 
         persistTabSessionState();
     }
@@ -670,6 +679,14 @@ public class ClaudeChatWindow {
         streamCoalescer.dispose();
         if (sessionCallbackAdapter != null) {
             sessionCallbackAdapter.dispose();
+        }
+        if (titleEventListener != null && claudeSDKBridge != null) {
+            try {
+                claudeSDKBridge.removeDaemonEventListener(titleEventListener);
+            } catch (Exception e) {
+                LOG.warn("Failed to remove daemon event listener: " + e.getMessage());
+            }
+            titleEventListener = null;
         }
         webviewWatchdog.stop();
 

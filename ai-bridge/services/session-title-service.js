@@ -78,7 +78,24 @@ async function hasExistingAiTitle(sessionFile) {
     try {
       const buf = Buffer.alloc(tailSize);
       await fd.read(buf, 0, tailSize, stat.size - tailSize);
-      return buf.toString('utf8').includes('"type":"ai-title"');
+      const text = buf.toString('utf8');
+      // Drop the first segment because it may be a partial line if the read
+      // window started mid-line (only safe to parse complete JSONL records).
+      const lines = text.split('\n');
+      if (stat.size > tailSize) {
+        lines.shift();
+      }
+      for (const line of lines) {
+        if (!line) continue;
+        try {
+          if (JSON.parse(line).type === 'ai-title') {
+            return true;
+          }
+        } catch {
+          // Skip non-JSON / partial lines.
+        }
+      }
+      return false;
     } finally {
       await fd.close();
     }
@@ -250,8 +267,10 @@ async function saveAiTitle(sessionId, title, cwd) {
 
     // Notify the Java layer so it can forward to the frontend for display
     emitTitleGenerated(sessionId, title);
+    return true;
   } catch (e) {
     logTitleEvent('error', 'Failed to save AI title: ' + e.message);
+    return false;
   }
 }
 
@@ -267,7 +286,9 @@ async function saveAiTitle(sessionId, title, cwd) {
 export async function generateSessionTitle(userMessage, sessionId, cwd) {
   if (!userMessage || !userMessage.trim() || !sessionId) {
     logTitleEvent('info', 'Skipping title generation: missing userMessage or sessionId');
-    return;
+    // Treat invalid input as "do not retry" — return true so callers don't
+    // un-flag titleGenerationAttempted and re-trigger on the next turn.
+    return true;
   }
 
   // Defensive: skip if the session already has an AI title (prevents overwrite).
@@ -278,24 +299,39 @@ export async function generateSessionTitle(userMessage, sessionId, cwd) {
     const sessionFile = getSessionFilePath(sessionId, cwd);
     if (await hasExistingAiTitle(sessionFile)) {
       logTitleEvent('info', 'Skipping title generation: session already has an AI title');
-      return;
+      return true;
     }
   } catch (e) {
     logTitleEvent('warn', 'Failed to check existing AI title, proceeding: ' + e.message);
   }
 
   try {
-    const input = userMessage.length > MAX_CONVERSATION_TEXT
-      ? userMessage.slice(-MAX_CONVERSATION_TEXT)
-      : userMessage;
+    // Iterate by Unicode code point so we never split a surrogate pair
+    // (e.g. CJK extension characters or emoji) when truncating.
+    let input = userMessage;
+    if (userMessage.length > MAX_CONVERSATION_TEXT) {
+      const codePoints = Array.from(userMessage);
+      if (codePoints.length > MAX_CONVERSATION_TEXT) {
+        input = codePoints.slice(-MAX_CONVERSATION_TEXT).join('');
+      }
+    }
 
     const title = await callHaikuApi(input);
     if (title) {
+      // saveAiTitle returning false signals an FS error; don't retry — disk
+      // problems are usually persistent and a retry storm helps no one.
       await saveAiTitle(sessionId, title, cwd);
-    } else {
-      logTitleEvent('info', 'Title generation returned no result for session ' + sessionId);
+      return true;
     }
+    // callHaikuApi returns null for permanent skips (cli_login, missing key,
+    // unparseable response). Treat as "already attempted" so the caller does
+    // not reset its guard and re-call on the next turn.
+    logTitleEvent('info', 'Title generation returned no result for session ' + sessionId);
+    return true;
   } catch (e) {
+    // Thrown errors come from the SDK / network layer and are typically
+    // transient — return false so callers may reset their guard and retry.
     logTitleEvent('error', 'Title generation failed: ' + e.message);
+    return false;
   }
 }

@@ -320,11 +320,22 @@ async function executeTurn(runtime, requestContext, turnMeta) {
     // Fire-and-forget: generate AI title for new sessions (not resumes).
     // titleGenerationAttempted prevents duplicate calls when a second message
     // arrives before the first Haiku API response completes.
+    // The flag is reset if generateSessionTitle reports a transient failure
+    // so a future turn may retry; permanent skips (e.g. CLI login mode) keep
+    // the flag set to avoid endless retries.
     if (!requestContext.requestedSessionId && finalSessionId && !runtime.titleGenerationAttempted) {
       runtime.titleGenerationAttempted = true;
       const userMessageText = extractUserMessageText(requestContext.userMessage);
       if (userMessageText) {
-        void generateSessionTitle(userMessageText, finalSessionId, requestContext.options.cwd);
+        generateSessionTitle(userMessageText, finalSessionId, requestContext.options.cwd)
+          .then((completed) => {
+            if (!completed) {
+              runtime.titleGenerationAttempted = false;
+            }
+          })
+          .catch(() => {
+            runtime.titleGenerationAttempted = false;
+          });
       }
     }
   } finally {
