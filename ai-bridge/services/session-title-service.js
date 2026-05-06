@@ -4,12 +4,12 @@
  * Follows CLI's generate_session_title flow but runs independently in ai-bridge.
  */
 
-import { appendFile, mkdir, access, open as fsOpen, stat as fsStat } from 'fs/promises';
+import { appendFile, mkdir, access, open as fsOpen, stat as fsStat, readFile } from 'fs/promises';
 import { join } from 'path';
 import { setupApiKey, loadClaudeSettings, getCliUserAgent } from '../config/api-config.js';
 import { ensureAnthropicSdk, ensureBedrockSdk } from './claude/message-utils.js';
 import { resolveModelFromSettings } from '../utils/model-utils.js';
-import { getClaudeDir } from '../utils/path-utils.js';
+import { getClaudeDir, getCodemossDir } from '../utils/path-utils.js';
 
 const DEFAULT_HAIKU_MODEL = 'claude-haiku-4-5-20251001';
 const MAX_CONVERSATION_TEXT = 1000;
@@ -101,6 +101,26 @@ async function hasExistingAiTitle(sessionFile) {
     }
   } catch {
     return false;
+  }
+}
+
+/**
+ * Read the AI title generation toggle from ~/.codemoss/config.json.
+ * Defaults to true (enabled) when the config is missing, malformed, or the
+ * field is not set, matching the Java CodemossSettingsService default.
+ * @returns {Promise<boolean>}
+ */
+async function isTitleGenerationEnabled() {
+  try {
+    const configPath = join(getCodemossDir(), 'config.json');
+    const text = await readFile(configPath, 'utf8');
+    const config = JSON.parse(text);
+    if (config && typeof config === 'object' && 'aiTitleGenerationEnabled' in config) {
+      return config.aiTitleGenerationEnabled !== false;
+    }
+    return true;
+  } catch {
+    return true;
   }
 }
 
@@ -288,6 +308,11 @@ export async function generateSessionTitle(userMessage, sessionId, cwd) {
     logTitleEvent('info', 'Skipping title generation: missing userMessage or sessionId');
     // Treat invalid input as "do not retry" — return true so callers don't
     // un-flag titleGenerationAttempted and re-trigger on the next turn.
+    return true;
+  }
+
+  if (!(await isTitleGenerationEnabled())) {
+    logTitleEvent('info', 'Skipping title generation: disabled in user settings');
     return true;
   }
 

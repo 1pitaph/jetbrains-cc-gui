@@ -261,6 +261,11 @@ interface Window {
   updateCommitGenerationEnabled?: (json: string) => void;
 
   /**
+   * Update AI session title generation enabled state
+   */
+  updateAiTitleGenerationEnabled?: (json: string) => void;
+
+  /**
    * Update status bar widget enabled state
    */
   updateStatusBarWidgetEnabled?: (json: string) => void;
