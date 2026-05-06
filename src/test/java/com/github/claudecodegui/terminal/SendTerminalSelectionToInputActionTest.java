@@ -148,7 +148,7 @@ public class SendTerminalSelectionToInputActionTest {
     }
 
     private static List<String> childIds(TestActionManager actionManager, DefaultActionGroup group) {
-        return Arrays.stream(group.getChildren(actionManager))
+        return Arrays.stream(group.getChildActionsOrStubs())
                 .map(actionManager::getId)
                 .collect(Collectors.toList());
     }
