@@ -222,7 +222,7 @@ const App = () => {
     createNewSession, forceCreateNewSession,
     handleConfirmNewSession, handleCancelNewSession,
     handleConfirmInterrupt, handleCancelInterrupt,
-    loadHistorySession, deleteHistorySession, exportHistorySession,
+    loadHistorySession, deleteHistorySession, deleteHistorySessions, exportHistorySession,
     toggleFavoriteSession, updateHistoryTitle,
   } = useSessionManagement({
     messages, loading, historyData, currentSessionId,
@@ -598,6 +598,7 @@ const App = () => {
           currentProvider={currentProvider}
           onLoadSession={loadHistorySession}
           onDeleteSession={deleteHistorySession}
+          onDeleteSessions={deleteHistorySessions}
           onExportSession={exportHistorySession}
           onToggleFavorite={toggleFavoriteSession}
           onUpdateTitle={updateHistoryTitle}
