@@ -1,15 +1,14 @@
 package com.github.claudecodegui.handler.context;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Test for WorkspaceContextCollector.
@@ -85,30 +84,31 @@ public class WorkspaceContextCollectorTest {
 
     /**
      * Test extractSubprojectNameFromPath with multiple trailing slashes.
+     * All trailing slashes should be trimmed before taking the last segment.
      */
     @Test
     public void extractSubprojectNameFromPathWithMultipleTrailingSlashes() throws Exception {
-        // Only single trailing slash is trimmed
-        String name = invokeExtractName("/home/user/projects/my-app/");
+        String name = invokeExtractName("/home/user/projects/my-app//");
         assertEquals("my-app", name);
     }
 
     /**
-     * Test that subprojects array is always present when isWorkspace is true.
-     * Verifies the fix for the conditional subprojects key issue.
+     * Test that extractSubprojectNameFromPath returns null for an all-slashes path.
      */
     @Test
-    public void subprojectsAlwaysPresentWhenIsWorkspace() throws Exception {
-        // We can't easily test with a real workspace project in unit tests,
-        // but we can verify the JSON structure contract by checking that
-        // when collectWorkspaceContext returns isWorkspace=true, subprojects key exists
-        // This is validated indirectly - the static method always adds subprojects array
-        // when isWorkspace path is taken (verified via code review).
-        // Here we just ensure the method is callable and returns valid JSON.
+    public void extractSubprojectNameFromAllSlashes() throws Exception {
+        String name = invokeExtractName("///");
+        assertNull(name);
+    }
+
+    /**
+     * Test that null project results in a JSON object without an isWorkspace key.
+     */
+    @Test
+    public void nullProjectProducesEmptyContextWithoutIsWorkspaceKey() {
         JsonObject result = WorkspaceContextCollector.collectWorkspaceContext(null);
         assertNotNull(result);
-        // For null project, we get an empty object (no isWorkspace key)
-        assertTrue(!result.has("isWorkspace"));
+        assertFalse(result.has("isWorkspace"));
     }
 
     private static String invokeExtractName(String path) throws Exception {

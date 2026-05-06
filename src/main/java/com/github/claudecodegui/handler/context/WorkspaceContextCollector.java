@@ -25,6 +25,17 @@ public class WorkspaceContextCollector {
 
     private static final Logger LOG = Logger.getInstance(WorkspaceContextCollector.class);
 
+    private static final String CLASS_SUBPROJECT_MANAGER =
+        "com.intellij.ide.workspace.SubprojectManager";
+    private static final String CLASS_SUBPROJECT_MANAGER_KT =
+        "com.intellij.ide.workspace.SubprojectManagerKt";
+    private static final String CLASS_SUBPROJECT =
+        "com.intellij.ide.workspace.Subproject";
+    private static final String CLASS_WORKSPACE_SETTINGS =
+        "com.intellij.ide.workspace.WorkspaceSettings";
+    private static final String CLASS_SUBPROJECT_INFO_PROVIDER =
+        "com.intellij.openapi.project.workspace.SubprojectInfoProvider";
+
     private static final boolean WORKSPACE_PLUGIN_AVAILABLE = isWorkspacePluginAvailable();
     private static Method getSubprojectManagerMethod;
     private static Method getAllSubprojectsMethod;
@@ -32,18 +43,14 @@ public class WorkspaceContextCollector {
     private static Method getSubprojectNameMethod;
     private static Method getSubprojectByPathMethod;
     private static Method getHandlerMethod;
-    private static volatile Method isLoadedMethod;
     private static Class<?> subprojectClass;
 
     static {
         if (WORKSPACE_PLUGIN_AVAILABLE) {
             try {
-                Class<?> subprojectManagerClass = Class.forName(
-                    "com.intellij.ide.workspace.SubprojectManager");
-                Class<?> subprojectManagerKtClass = Class.forName(
-                    "com.intellij.ide.workspace.SubprojectManagerKt");
-                subprojectClass = Class.forName(
-                    "com.intellij.ide.workspace.Subproject");
+                Class<?> subprojectManagerClass = Class.forName(CLASS_SUBPROJECT_MANAGER);
+                Class<?> subprojectManagerKtClass = Class.forName(CLASS_SUBPROJECT_MANAGER_KT);
+                subprojectClass = Class.forName(CLASS_SUBPROJECT);
 
                 getSubprojectManagerMethod = subprojectManagerKtClass.getMethod(
                     "getSubprojectManager", Project.class);
@@ -68,8 +75,8 @@ public class WorkspaceContextCollector {
 
     private static boolean isWorkspacePluginAvailable() {
         try {
-            Class.forName("com.intellij.ide.workspace.SubprojectManager");
-            Class.forName("com.intellij.ide.workspace.WorkspaceSettings");
+            Class.forName(CLASS_SUBPROJECT_MANAGER);
+            Class.forName(CLASS_WORKSPACE_SETTINGS);
             return true;
         } catch (ClassNotFoundException e) {
             LOG.info("Workspace plugin not available - standard single-project mode");
@@ -140,8 +147,7 @@ public class WorkspaceContextCollector {
                 return false;
             }
 
-            Class<?> workspaceSettingsClass = Class.forName(
-                "com.intellij.ide.workspace.WorkspaceSettings");
+            Class<?> workspaceSettingsClass = Class.forName(CLASS_WORKSPACE_SETTINGS);
             Method getServiceMethod = workspaceSettingsClass.getMethod("getInstance", Project.class);
             Object settings = getServiceMethod.invoke(null, project);
 
@@ -238,6 +244,9 @@ public class WorkspaceContextCollector {
 
     /**
      * Check if a subproject is loaded.
+     * Resolves the isLoaded method against the actual handler class on each call,
+     * because different handlers (Gradle, Maven, etc.) may declare it on different classes.
+     * Method lookup is internally cached by the JVM, so the per-call cost is negligible.
      */
     private static boolean checkSubprojectLoaded(@NotNull Object subproject) {
         if (getHandlerMethod == null) {
@@ -248,9 +257,7 @@ public class WorkspaceContextCollector {
             Object handler = getHandlerMethod.invoke(subproject);
 
             if (handler != null) {
-                if (isLoadedMethod == null) {
-                    isLoadedMethod = handler.getClass().getMethod("isLoaded", subprojectClass);
-                }
+                Method isLoadedMethod = handler.getClass().getMethod("isLoaded", subprojectClass);
                 return Boolean.TRUE.equals(isLoadedMethod.invoke(handler, subproject));
             }
         } catch (Exception e) {
@@ -320,31 +327,49 @@ public class WorkspaceContextCollector {
             return null;
         }
 
-        // 1. Try using platform's SubprojectInfoProvider if available
+        // 1. Try using platform's SubprojectInfoProvider if available.
+        //    Prefer resolving the actual Subproject.getName() over deriving the name from
+        //    the path, because subproject display names may differ from their directory names.
         String subprojectPath = getSubprojectPathFromProvider(project, filePath);
         if (subprojectPath != null) {
+            String name = getSubprojectNameByPath(project, subprojectPath);
+            if (name != null) {
+                return name;
+            }
             return extractSubprojectNameFromPath(subprojectPath);
         }
 
-        // 2. Try using workspace plugin's SubprojectManager
-        if (WORKSPACE_PLUGIN_AVAILABLE && getSubprojectManagerMethod != null
-                && getSubprojectByPathMethod != null) {
-            try {
-                Object manager = getSubprojectManagerMethod.invoke(null, project);
-                if (manager != null) {
-                    Object subproject = getSubprojectByPathMethod.invoke(manager, filePath, false);
-
-                    if (subproject != null && subprojectClass.isInstance(subproject)) {
-                        return (String) getSubprojectNameMethod.invoke(subproject);
-                    }
-                }
-            } catch (Exception e) {
-                LOG.debug("Failed to get subproject for file via workspace plugin: " + e.getMessage());
-            }
+        // 2. Try using workspace plugin's SubprojectManager directly with the file path
+        String name = getSubprojectNameByPath(project, filePath);
+        if (name != null) {
+            return name;
         }
 
         // 3. Fallback: find module containing the file
         return getModuleForFile(project, filePath);
+    }
+
+    /**
+     * Look up a Subproject by path via the workspace plugin and return its name.
+     */
+    private static @Nullable String getSubprojectNameByPath(@NotNull Project project, @NotNull String path) {
+        if (!WORKSPACE_PLUGIN_AVAILABLE || getSubprojectManagerMethod == null
+                || getSubprojectByPathMethod == null || subprojectClass == null) {
+            return null;
+        }
+        try {
+            Object manager = getSubprojectManagerMethod.invoke(null, project);
+            if (manager == null) {
+                return null;
+            }
+            Object subproject = getSubprojectByPathMethod.invoke(manager, path, false);
+            if (subproject != null && subprojectClass.isInstance(subproject)) {
+                return (String) getSubprojectNameMethod.invoke(subproject);
+            }
+        } catch (Exception e) {
+            LOG.debug("Failed to get subproject name by path: " + e.getMessage());
+        }
+        return null;
     }
 
     /**
@@ -353,8 +378,7 @@ public class WorkspaceContextCollector {
      */
     private static @Nullable String getSubprojectPathFromProvider(@NotNull Project project, @NotNull String filePath) {
         try {
-            Class<?> subprojectInfoProviderClass = Class.forName(
-                "com.intellij.openapi.project.workspace.SubprojectInfoProvider");
+            Class<?> subprojectInfoProviderClass = Class.forName(CLASS_SUBPROJECT_INFO_PROVIDER);
             Method getServiceMethod = subprojectInfoProviderClass.getMethod("getInstance", Project.class);
             Object provider = getServiceMethod.invoke(null, project);
 
@@ -376,11 +400,18 @@ public class WorkspaceContextCollector {
 
     /**
      * Extract subproject name from path.
+     * Trims all trailing slashes before taking the last path segment.
      */
     private static @Nullable String extractSubprojectNameFromPath(@NotNull String path) {
-        String trimmed = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+        String trimmed = path;
+        while (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        if (trimmed.isEmpty()) {
+            return null;
+        }
         int lastSlash = trimmed.lastIndexOf('/');
-        if (lastSlash >= 0 && lastSlash < trimmed.length() - 1) {
+        if (lastSlash >= 0) {
             return trimmed.substring(lastSlash + 1);
         }
         return trimmed;

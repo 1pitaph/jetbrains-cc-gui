@@ -103,7 +103,8 @@ public class SessionContextService {
                     String name = sp.has("name") ? sp.get("name").getAsString() : "unknown";
                     String path = sp.has("path") ? sp.get("path").getAsString() : "";
                     String type = sp.has("type") ? sp.get("type").getAsString() : "";
-                    boolean loaded = sp.has("loaded") && sp.get("loaded").getAsBoolean();
+                    // Match the JS-side default in system-prompts.js: missing means loaded.
+                    boolean loaded = !sp.has("loaded") || sp.get("loaded").getAsBoolean();
 
                     sb.append("- **").append(name).append("**");
                     if (!type.isEmpty()) {
@@ -132,7 +133,7 @@ public class SessionContextService {
         if (openedFilesJson != null && openedFilesJson.has("modules")) {
             JsonArray modules = openedFilesJson.getAsJsonArray("modules");
             if (modules.size() > 1 && (!openedFilesJson.has("isWorkspace")
-                    || (openedFilesJson.has("isWorkspace") && !openedFilesJson.get("isWorkspace").getAsBoolean()))) {
+                    || !openedFilesJson.get("isWorkspace").getAsBoolean())) {
                 sb.append("\n\n## Project Modules\n\n");
                 sb.append("This project contains multiple modules:\n");
                 for (int i = 0; i < modules.size(); i++) {
