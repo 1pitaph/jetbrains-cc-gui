@@ -637,6 +637,51 @@ public class ProjectConfigHandler {
         }
     }
 
+    // ==================== Task Completion Notification ====================
+
+    public void handleGetTaskCompletionNotificationEnabled() {
+        try {
+            boolean enabled = settingsService.getTaskCompletionNotificationEnabled();
+            ApplicationManager.getApplication().invokeLater(() -> {
+                JsonObject r = new JsonObject();
+                r.addProperty("taskCompletionNotificationEnabled", enabled);
+                context.callJavaScript("window.updateTaskCompletionNotificationEnabled", context.escapeJs(gson.toJson(r)));
+            });
+        } catch (Exception e) {
+            LOG.error("[ProjectConfigHandler] Failed to get task completion notification enabled: " + e.getMessage(), e);
+            ApplicationManager.getApplication().invokeLater(() -> {
+                JsonObject r = new JsonObject();
+                r.addProperty("taskCompletionNotificationEnabled", false);
+                context.callJavaScript("window.updateTaskCompletionNotificationEnabled", context.escapeJs(gson.toJson(r)));
+            });
+        }
+    }
+
+    public void handleSetTaskCompletionNotificationEnabled(String content) {
+        try {
+            JsonObject json = gson.fromJson(content, JsonObject.class);
+            // Default to disabled when payload is missing or the field is absent/null (opt-in feature).
+            boolean enabled = false;
+            if (json != null
+                && json.has("taskCompletionNotificationEnabled")
+                && !json.get("taskCompletionNotificationEnabled").isJsonNull()) {
+                enabled = json.get("taskCompletionNotificationEnabled").getAsBoolean();
+            }
+            settingsService.setTaskCompletionNotificationEnabled(enabled);
+            LOG.info("[ProjectConfigHandler] Set task completion notification enabled: " + enabled);
+            final boolean finalVal = enabled;
+            ApplicationManager.getApplication().invokeLater(() -> {
+                JsonObject r = new JsonObject();
+                r.addProperty("taskCompletionNotificationEnabled", finalVal);
+                context.callJavaScript("window.updateTaskCompletionNotificationEnabled", context.escapeJs(gson.toJson(r)));
+            });
+        } catch (Exception e) {
+            LOG.error("[ProjectConfigHandler] Failed to set task completion notification enabled: " + e.getMessage(), e);
+            ApplicationManager.getApplication().invokeLater(() ->
+                context.callJavaScript("window.showError", context.escapeJs("Failed to save task completion notification setting")));
+        }
+    }
+
     private void dispatchUiFontConfigUpdate() {
         try {
             String uiFontConfigJson = FontConfigService.getResolvedUiFontConfigJson(settingsService);

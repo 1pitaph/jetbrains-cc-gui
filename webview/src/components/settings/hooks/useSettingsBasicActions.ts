@@ -61,6 +61,7 @@ export interface UseSettingsBasicActionsReturn {
   commitGenerationEnabled: boolean;
   aiTitleGenerationEnabled: boolean;
   statusBarWidgetEnabled: boolean;
+  taskCompletionNotificationEnabled: boolean;
   commitAiConfig: CommitAiConfig;
   promptEnhancerConfig: PromptEnhancerConfig;
 
@@ -87,6 +88,7 @@ export interface UseSettingsBasicActionsReturn {
   handleCommitGenerationEnabledChange: (enabled: boolean) => void;
   handleAiTitleGenerationEnabledChange: (enabled: boolean) => void;
   handleStatusBarWidgetEnabledChange: (enabled: boolean) => void;
+  handleTaskCompletionNotificationEnabledChange: (enabled: boolean) => void;
   handleCommitAiProviderChange: (provider: CommitAiProvider) => void;
   handleCommitAiModelChange: (model: string) => void;
   handleCommitAiResetToDefault: () => void;
@@ -129,6 +131,7 @@ export interface UseSettingsBasicActionsReturn {
   /** @internal */ setCommitGenerationEnabled: (enabled: boolean) => void;
   /** @internal */ setAiTitleGenerationEnabled: (enabled: boolean) => void;
   /** @internal */ setStatusBarWidgetEnabled: (enabled: boolean) => void;
+  /** @internal */ setTaskCompletionNotificationEnabled: (enabled: boolean) => void;
   /** @internal */ setCommitAiConfig: (config: CommitAiConfig) => void;
   /** @internal */ setPromptEnhancerConfig: (config: PromptEnhancerConfig) => void;
 }
@@ -211,6 +214,10 @@ export function useSettingsBasicActions({
 
   // Status bar widget toggle (default: true)
   const [statusBarWidgetEnabled, setStatusBarWidgetEnabled] = useState<boolean>(true);
+
+  // Task completion notification toggle (default: false, opt-in feature)
+  const [taskCompletionNotificationEnabled, setTaskCompletionNotificationEnabled] = useState<boolean>(false);
+
   const [commitAiConfig, setCommitAiConfig] = useState<CommitAiConfig>(
     DEFAULT_COMMIT_AI_CONFIG
   );
@@ -373,6 +380,13 @@ export function useSettingsBasicActions({
     setStatusBarWidgetEnabled(enabled);
     const payload = { statusBarWidgetEnabled: enabled };
     sendToJava(`set_status_bar_widget_enabled:${JSON.stringify(payload)}`);
+  }, []);
+
+  // Task completion notification toggle change handler
+  const handleTaskCompletionNotificationEnabledChange = useCallback((enabled: boolean) => {
+    setTaskCompletionNotificationEnabled(enabled);
+    const payload = { taskCompletionNotificationEnabled: enabled };
+    sendToJava(`set_task_completion_notification_enabled:${JSON.stringify(payload)}`);
   }, []);
 
   const handleCommitAiProviderChange = useCallback((provider: CommitAiProvider) => {
@@ -550,6 +564,9 @@ export function useSettingsBasicActions({
     statusBarWidgetEnabled,
     setStatusBarWidgetEnabled,
     handleStatusBarWidgetEnabledChange,
+    taskCompletionNotificationEnabled,
+    setTaskCompletionNotificationEnabled,
+    handleTaskCompletionNotificationEnabledChange,
     commitAiConfig,
     setCommitAiConfig,
     handleCommitAiProviderChange,

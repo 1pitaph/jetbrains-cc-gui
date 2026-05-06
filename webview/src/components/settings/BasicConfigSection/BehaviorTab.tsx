@@ -98,6 +98,8 @@ export interface BehaviorTabProps {
   onSaveCustomSoundPath?: () => void;
   onTestSound?: () => void;
   onBrowseSound?: () => void;
+  taskCompletionNotificationEnabled?: boolean;
+  onTaskCompletionNotificationEnabledChange?: (enabled: boolean) => void;
 }
 
 const BehaviorTab = ({
@@ -126,6 +128,8 @@ const BehaviorTab = ({
   onSaveCustomSoundPath = () => {},
   onTestSound = () => {},
   onBrowseSound = () => {},
+  taskCompletionNotificationEnabled = false,
+  onTaskCompletionNotificationEnabledChange = () => {},
 }: BehaviorTabProps) => {
   const { t } = useTranslation();
 
@@ -302,6 +306,32 @@ const BehaviorTab = ({
         <small className={styles.formHint}>
           <span className="codicon codicon-info" />
           <span>{t('settings.basic.statusBarWidget.hint')}</span>
+        </small>
+      </div>
+
+      {/* Task completion notification toggle */}
+      <div className={styles.streamingSection}>
+        <div className={styles.fieldHeader}>
+          <span className="codicon codicon-bell" />
+          <span className={styles.fieldLabel}>{t('settings.basic.taskCompletionNotification.label')}</span>
+        </div>
+        <label className={styles.toggleWrapper}>
+          <input
+            type="checkbox"
+            className={styles.toggleInput}
+            checked={taskCompletionNotificationEnabled}
+            onChange={(e) => onTaskCompletionNotificationEnabledChange(e.target.checked)}
+          />
+          <span className={styles.toggleSlider} />
+          <span className={styles.toggleLabel}>
+            {taskCompletionNotificationEnabled
+              ? t('settings.basic.taskCompletionNotification.enabled')
+              : t('settings.basic.taskCompletionNotification.disabled')}
+          </span>
+        </label>
+        <small className={styles.formHint}>
+          <span className="codicon codicon-info" />
+          <span>{t('settings.basic.taskCompletionNotification.hint')}</span>
         </small>
       </div>
 
