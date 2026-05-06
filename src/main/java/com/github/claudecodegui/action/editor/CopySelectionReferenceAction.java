@@ -13,7 +13,6 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.SelectionModel;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -31,31 +30,22 @@ public class CopySelectionReferenceAction extends AnAction implements DumbAware 
 
     private static final Logger LOG = Logger.getInstance(CopySelectionReferenceAction.class);
 
-    private static Consumer<String> clipboardWriter = CopySelectionReferenceAction::writeToClipboard;
-
     private final SelectionReferenceBuilder selectionReferenceBuilder;
+    private final Consumer<String> clipboardWriter;
 
     public CopySelectionReferenceAction() {
-        this(
-                new SelectionReferenceBuilder(),
-                ClaudeCodeGuiBundle.message("action.copyAiReference.text"),
-                ClaudeCodeGuiBundle.message("action.copyAiReference.description")
-        );
-    }
-
-    CopySelectionReferenceAction(@NotNull SelectionReferenceBuilder selectionReferenceBuilder) {
-        this(
-                selectionReferenceBuilder,
-                "Copy AI Reference",
-                "Copy the selected code location as an AI reference"
-        );
+        this(new SelectionReferenceBuilder(), CopySelectionReferenceAction::writeToClipboard);
     }
 
     CopySelectionReferenceAction(@NotNull SelectionReferenceBuilder selectionReferenceBuilder,
-                                 @NotNull String text,
-                                 @NotNull String description) {
-        super(text, description, null);
+                                 @NotNull Consumer<String> clipboardWriter) {
+        super(
+                ClaudeCodeGuiBundle.message("action.copyAiReference.text"),
+                ClaudeCodeGuiBundle.message("action.copyAiReference.description"),
+                null
+        );
         this.selectionReferenceBuilder = Objects.requireNonNull(selectionReferenceBuilder);
+        this.clipboardWriter = Objects.requireNonNull(clipboardWriter);
     }
 
     @Override
@@ -114,14 +104,6 @@ public class CopySelectionReferenceAction extends AnAction implements DumbAware 
             LOG.warn("Failed to write selection reference to clipboard", ex);
             showClipboardWriteFailure(project, ClaudeCodeGuiBundle.message("action.copyAiReference.copyFailed"));
         }
-    }
-
-    static void setClipboardWriterForTest(Consumer<String> writer) {
-        clipboardWriter = Objects.requireNonNull(writer);
-    }
-
-    static void resetClipboardWriter() {
-        clipboardWriter = CopySelectionReferenceAction::writeToClipboard;
     }
 
     private static void writeToClipboard(@NotNull String content) {

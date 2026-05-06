@@ -18,7 +18,6 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.fileTypes.FileTypes;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.testFramework.LightVirtualFile;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -30,22 +29,22 @@ import java.lang.reflect.Proxy;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 public class CopySelectionReferenceActionTest {
 
-    private final CopySelectionReferenceAction action = new CopySelectionReferenceAction(new SelectionReferenceBuilder());
+    private static final Consumer<String> NOOP_CLIPBOARD = text -> { };
 
-    @After
-    public void tearDown() {
-        CopySelectionReferenceAction.resetClipboardWriter();
-    }
+    private final CopySelectionReferenceAction action =
+            new CopySelectionReferenceAction(new SelectionReferenceBuilder(), NOOP_CLIPBOARD);
 
     @Test
     public void successfulResultWritesExactReferenceToClipboardWriter() {
         AtomicReference<String> written = new AtomicReference<>();
-        CopySelectionReferenceAction.setClipboardWriterForTest(written::set);
+        CopySelectionReferenceAction recordingAction =
+                new CopySelectionReferenceAction(new SelectionReferenceBuilder(), written::set);
 
-        action.handleBuildResult(null, SelectionReferenceBuilder.Result.success("@D:\\Code\\demo\\Foo.java#L12-24"));
+        recordingAction.handleBuildResult(null, SelectionReferenceBuilder.Result.success("@D:\\Code\\demo\\Foo.java#L12-24"));
 
         Assert.assertEquals("@D:\\Code\\demo\\Foo.java#L12-24", written.get());
     }
@@ -53,20 +52,22 @@ public class CopySelectionReferenceActionTest {
     @Test
     public void failedResultDoesNotWriteAnything() {
         AtomicBoolean called = new AtomicBoolean(false);
-        CopySelectionReferenceAction.setClipboardWriterForTest(text -> called.set(true));
+        CopySelectionReferenceAction trackingAction =
+                new CopySelectionReferenceAction(new SelectionReferenceBuilder(), text -> called.set(true));
 
-        action.handleBuildResult(null, SelectionReferenceBuilder.Result.failure("send.selectCodeFirst"));
+        trackingAction.handleBuildResult(null, SelectionReferenceBuilder.Result.failure("send.selectCodeFirst"));
 
         Assert.assertFalse(called.get());
     }
 
     @Test
     public void clipboardWriterFailureIsSwallowed() {
-        CopySelectionReferenceAction.setClipboardWriterForTest(text -> {
-            throw new RuntimeException("boom");
-        });
+        CopySelectionReferenceAction throwingAction =
+                new CopySelectionReferenceAction(new SelectionReferenceBuilder(), text -> {
+                    throw new RuntimeException("boom");
+                });
 
-        action.handleBuildResult(null, SelectionReferenceBuilder.Result.success("@D:\\Code\\demo\\Foo.java#L1"));
+        throwingAction.handleBuildResult(null, SelectionReferenceBuilder.Result.success("@D:\\Code\\demo\\Foo.java#L1"));
     }
 
     @Test
@@ -124,7 +125,7 @@ public class CopySelectionReferenceActionTest {
         VirtualFile virtualFile = createFile("D:\\Code\\demo\\Foo.java");
         Editor editor = createEditor("selected");
         RecordingSelectionReferenceBuilder builder = new RecordingSelectionReferenceBuilder();
-        CopySelectionReferenceAction testAction = new CopySelectionReferenceAction(builder);
+        CopySelectionReferenceAction testAction = new CopySelectionReferenceAction(builder, NOOP_CLIPBOARD);
         AnActionEvent event = createEvent(createDataContext(editor, virtualFile));
 
         SelectionReferenceBuilder.Result result = testAction.buildSelectionReference(event);
