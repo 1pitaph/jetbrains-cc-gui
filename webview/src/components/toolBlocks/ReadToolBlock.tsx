@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ToolInput } from '../../types';
+import type { ToolInput, ToolResultBlock } from '../../types';
+import { useIsToolDenied } from '../../hooks/useIsToolDenied';
 import { openFile } from '../../utils/bridge';
 import { getFileIcon, getFolderIcon } from '../../utils/fileIcons';
 import { getToolLineInfo, resolveToolTarget } from '../../utils/toolPresentation';
 
 interface ReadToolBlockProps {
   input?: ToolInput;
+  result?: ToolResultBlock | null;
+  /** Unique ID of the tool call, used to determine if the user denied permission */
+  toolId?: string;
 }
 
 const FILE_LINK_STYLE: React.CSSProperties = {
@@ -59,13 +63,20 @@ const PARAM_VALUE_STYLE: React.CSSProperties = {
   flex: 1,
 };
 
-const ReadToolBlock = ({ input }: ReadToolBlockProps) => {
+const ReadToolBlock = ({ input, result, toolId }: ReadToolBlockProps) => {
   const [expanded, setExpanded] = useState(false);
   const { t } = useTranslation();
+  const isDenied = useIsToolDenied(toolId);
 
   if (!input) {
     return null;
   }
+
+  // Determine tool call status based on result.
+  // While the model is still waiting on the read result, the indicator must
+  // reflect "pending" (yellow breathing) instead of misleading green "completed".
+  const isCompleted = (result !== undefined && result !== null) || isDenied;
+  const isError = isDenied || (isCompleted && result?.is_error === true);
 
   const target = resolveToolTarget(input, 'read');
   const filePath = target?.rawPath;
@@ -139,7 +150,7 @@ const ReadToolBlock = ({ input }: ReadToolBlockProps) => {
           )}
         </div>
 
-        <div className="tool-status-indicator completed" />
+        <div className={`tool-status-indicator ${isError ? 'error' : isCompleted ? 'completed' : 'pending'}`} />
       </div>
 
       {expanded && params.length > 0 && (

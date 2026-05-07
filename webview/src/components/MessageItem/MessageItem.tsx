@@ -389,13 +389,18 @@ export const MessageItem = memo(function MessageItem({
             name: block.name,
             input: block.input,
             result: findToolResult(block.id, messageIndex),
+            toolId: block.id,
           };
         });
 
         if (readItems.length === 1) {
           return (
             <div key={`${messageIndex}-readgroup-${grouped.startIndex}`} className="content-block">
-              <ReadToolBlock input={readItems[0].input} />
+              <ReadToolBlock
+                input={readItems[0].input}
+                result={readItems[0].result}
+                toolId={readItems[0].toolId}
+              />
             </div>
           );
         }
