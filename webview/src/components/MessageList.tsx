@@ -9,6 +9,8 @@ import { useContextMenu, copySelection } from '../hooks/useContextMenu.js';
 
 /** Always render at least this many recent messages. Earlier messages are collapsed. */
 const VISIBLE_MESSAGE_WINDOW = 15;
+/** Number of additional earlier messages to reveal per "show earlier" click. */
+const REVEAL_PAGE_SIZE = 30;
 
 function extractToolResultPreview(result: ToolResultBlock | null | undefined): string {
   if (!result) return 'pending';
@@ -77,7 +79,10 @@ export const MessageList = memo(function MessageList({
   onCollapsedCountChange,
   onNavigateToProviderSettings,
 }: MessageListProps) {
-  const [showAll, setShowAll] = useState(false);
+  // Number of earlier messages revealed beyond VISIBLE_MESSAGE_WINDOW. Grows in
+  // page-size chunks as the user clicks "show earlier", avoiding a single huge
+  // mount when sessions exceed hundreds of messages.
+  const [revealedCount, setRevealedCount] = useState(0);
 
   // Context menu for message list (copy only, when text selected)
   const ctxMenu = useContextMenu();
@@ -88,18 +93,25 @@ export const MessageList = memo(function MessageList({
     }
   }, [ctxMenu.open]);
 
-  // Reset showAll when a new session starts (first message ID changes)
+  // Reset revealed count when a new session starts (first message ID changes)
   const firstMsgIdRef = useRef(messages[0]?.id);
   useEffect(() => {
     const currentFirstId = messages[0]?.id;
     if (currentFirstId !== firstMsgIdRef.current) {
-      setShowAll(false);
+      setRevealedCount(0);
     }
     firstMsgIdRef.current = currentFirstId;
   }, [messages]);
 
-  const shouldCollapse = !showAll && messages.length > VISIBLE_MESSAGE_WINDOW;
-  const collapsedCount = shouldCollapse ? messages.length - VISIBLE_MESSAGE_WINDOW : 0;
+  const totalEarlierMessages = Math.max(0, messages.length - VISIBLE_MESSAGE_WINDOW);
+  const effectiveRevealed = Math.min(revealedCount, totalEarlierMessages);
+  const shouldCollapse = effectiveRevealed < totalEarlierMessages;
+  const collapsedCount = totalEarlierMessages - effectiveRevealed;
+  const nextChunkSize = Math.min(REVEAL_PAGE_SIZE, collapsedCount);
+
+  const handleRevealMore = useCallback(() => {
+    setRevealedCount((prev) => prev + REVEAL_PAGE_SIZE);
+  }, []);
 
   // Notify parent of collapsed count changes (for anchor rail sync)
   useEffect(() => {
@@ -125,9 +137,10 @@ export const MessageList = memo(function MessageList({
       {shouldCollapse && (
         <div
           className="collapsed-messages-indicator"
-          onClick={() => setShowAll(true)}
+          onClick={handleRevealMore}
         >
-          {t('chat.showEarlierMessages', { count: collapsedCount })}
+          {t('chat.showEarlierMessages', { count: nextChunkSize })}
+          {collapsedCount > nextChunkSize ? ` (${collapsedCount})` : ''}
         </div>
       )}
 
