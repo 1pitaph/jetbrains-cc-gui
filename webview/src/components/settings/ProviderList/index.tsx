@@ -7,6 +7,9 @@ import { useDragSort } from '../hooks/useDragSort';
 import ImportConfirmDialog from './ImportConfirmDialog';
 import styles from './style.module.less';
 
+const ICON_MR_8_STYLE: React.CSSProperties = { marginRight: '8px' };
+const CLI_ACCOUNT_INFO_STYLE: React.CSSProperties = { marginTop: '4px', opacity: 0.8 };
+
 interface ProviderListProps {
   providers: ProviderConfig[];
   onAdd: () => void;
@@ -511,7 +514,7 @@ export default function ProviderList({
           >
             <div className={styles.cardInfo}>
               <div className={styles.name}>
-                <span className="codicon codicon-file" style={{ marginRight: '8px' }} />
+                <span className="codicon codicon-file" style={ICON_MR_8_STYLE} />
                 {t('settings.provider.localProviderName')}
               </div>
               <div className={styles.website} title={t('settings.provider.localProviderDescription')}>
@@ -546,14 +549,14 @@ export default function ProviderList({
           >
             <div className={styles.cardInfo}>
               <div className={styles.name}>
-                <span className="codicon codicon-key" style={{ marginRight: '8px' }} />
+                <span className="codicon codicon-key" style={ICON_MR_8_STYLE} />
                 {t('settings.provider.cliLoginProviderName')}
               </div>
               <div className={styles.website} title={t('settings.provider.cliLoginProviderDescription')}>
                 {t('settings.provider.cliLoginProviderDescription')}
               </div>
               {cliLoginAccountEmail && localProviders.some(p => p.id === SPECIAL_PROVIDER_IDS.CLI_LOGIN && p.isActive) && (
-                <div className={styles.website} style={{ marginTop: '4px', opacity: 0.8 }}>
+                <div className={styles.website} style={CLI_ACCOUNT_INFO_STYLE}>
                   {t('settings.provider.cliLoginAccountInfo', { email: cliLoginAccountEmail })}
                 </div>
               )}
