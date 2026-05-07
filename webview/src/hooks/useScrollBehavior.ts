@@ -66,42 +66,76 @@ export function useScrollBehavior({
   }, [syncScrollAnchoring]);
 
   // Scroll to bottom function
+  //
+  // Two-step strategy to handle `content-visibility: auto` correctly:
+  //
+  //   Step 1 — `scrollTop = scrollHeight`: gives a coarse landing point based
+  //     on whatever the browser currently reports. With content-visibility,
+  //     `scrollHeight` may be the sum of placeholder heights + real heights,
+  //     so this alone may under-shoot.
+  //
+  //   Step 2 — `scrollIntoView({block: 'end'})` on the end-marker: instructs
+  //     the browser to resolve the actual element position. Inside the
+  //     scrolling container, this triggers layout of any deferred elements
+  //     between the current scroll position and the end marker, so the final
+  //     scrollTop lands on the real bottom regardless of placeholder sizes.
+  //
+  // Together they fix the symptom where streaming tool blocks appeared
+  // "stuck" at the bottom of the viewport until the user manually scrolled.
   const scrollToBottom = useCallback(() => {
     const container = messagesContainerRef.current;
     const endElement = messagesEndRef.current;
 
+    if (!container && !endElement) return;
+
+    isAutoScrollingRef.current = true;
+    isUserAtBottomRef.current = true;
+    container?.classList.remove(SCROLL_ANCHOR_ENABLED_CLASS);
+
+    if (container) {
+      // Force reflow on the last few messages before scrolling — when
+      // `content-visibility: auto` is active, this ensures the recently-added
+      // streaming content has accurate dimensions before the browser computes
+      // the scroll target. Reading `offsetHeight` is enough to trigger layout.
+      const recentMessages = container.querySelectorAll('.message');
+      const recentCount = Math.min(5, recentMessages.length);
+      for (let i = recentMessages.length - recentCount; i < recentMessages.length; i++) {
+        const el = recentMessages[i];
+        if (el instanceof HTMLElement) {
+          void el.offsetHeight;
+        }
+      }
+    }
+
     if (endElement) {
-      // Force the browser to resolve layout all the way to the end marker
-      // before we read scrollHeight. This avoids intermediate scroll targets
-      // when the last message uses deferred layout/content-visibility and
-      // grows in multiple phases (common for Agent tool blocks).
+      // Force layout up to the end marker so subsequent scroll operations
+      // see accurate dimensions even if intermediate messages are using
+      // deferred (content-visibility) layout.
       void endElement.getBoundingClientRect();
       void endElement.offsetTop;
     }
 
+    // Step 1: coarse scrollTop adjustment (fallback path + jsdom-friendly).
     if (container) {
-      isAutoScrollingRef.current = true;
-      isUserAtBottomRef.current = true;
-      container.classList.remove(SCROLL_ANCHOR_ENABLED_CLASS);
       container.scrollTop = container.scrollHeight;
-      requestAnimationFrame(() => {
-        isAutoScrollingRef.current = false;
-      });
-      return;
     }
 
+    // Step 2: precise scrollIntoView (fixes content-visibility under-shoot).
     if (endElement) {
-      isAutoScrollingRef.current = true;
       try {
         endElement.scrollIntoView({ block: 'end', behavior: 'auto' });
       } catch {
-        endElement.scrollIntoView(false);
+        try {
+          endElement.scrollIntoView(false);
+        } catch {
+          // No-op: scrollTop fallback already executed in Step 1.
+        }
       }
-      requestAnimationFrame(() => {
-        isAutoScrollingRef.current = false;
-      });
-      return;
     }
+
+    requestAnimationFrame(() => {
+      isAutoScrollingRef.current = false;
+    });
   }, []);
 
   // Warm up layout after window regains focus (macOS JCEF drops GPU layers

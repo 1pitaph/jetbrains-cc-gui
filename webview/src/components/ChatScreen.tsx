@@ -155,7 +155,10 @@ export const ChatScreen = ({
           containerRef={messagesContainerRef}
           messageNodeMap={messageNodeMapRef}
         />
-        <div className="messages-container" ref={messagesContainerRef}>
+        <div
+          className={`messages-container${streamingActive ? ' streaming-active' : ''}`}
+          ref={messagesContainerRef}
+        >
           {messages.length === 0 && (
             <WelcomeScreen
               currentProvider={currentProvider}
