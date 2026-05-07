@@ -1,6 +1,10 @@
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+import { MessagesProvider } from './contexts/MessagesContext';
+import { SessionProvider } from './contexts/SessionContext';
+import { UIStateProvider } from './contexts/UIStateContext';
+import { DialogProvider } from './contexts/DialogContext';
 import './codicon.css';
 import './styles/app.less';
 import './i18n/config';
@@ -591,7 +595,15 @@ if (typeof window !== 'undefined') {
 // Render the React application
 ReactDOM.createRoot(document.getElementById('app') as HTMLElement).render(
   <ErrorBoundary>
-    <App />
+    <UIStateProvider>
+      <SessionProvider>
+        <MessagesProvider>
+          <DialogProvider>
+            <App />
+          </DialogProvider>
+        </MessagesProvider>
+      </SessionProvider>
+    </UIStateProvider>
   </ErrorBoundary>,
 );
 
